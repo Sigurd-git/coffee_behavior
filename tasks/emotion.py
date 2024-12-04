@@ -19,7 +19,7 @@ def run_emotion(win, participant_id, session):
     # Task parameters
     params = {
         "stim_duration": 6.0,  # Stimulus presentation time in seconds
-        "rating_duration": 10.0,  # Maximum time for rating
+        "rating_duration": 5.0,  # Maximum time for rating
         "isi": 0.5,  # Inter-stimulus interval
         "images_per_category": 10,
         "stim_size": (800, 600),  # Standard size for all images
@@ -86,9 +86,10 @@ def run_emotion(win, participant_id, session):
             在接下来的实验中，您将看到一系列图片。
             请根据您的真实感受对每张图片进行评分：
 
-            效价评分：1(非常不愉快) 到 9(非常愉快)
-            唤醒度评分：1(非常平静) 到 9(非常唤醒)
-
+            效价评分: 1(非常不愉快) 到 9(非常愉快)
+            唤醒度评分: 1(非常平静) 到 9(非常唤醒)
+            控制感评分: 1(受控制) 到 9(有掌控感)
+            
             按空格键继续
             """
         else:  # regulation phase
@@ -166,7 +167,7 @@ def run_emotion(win, participant_id, session):
             # Get ratings
             valence, val_rt = get_rating("情绪效价评分", "1 = 非常不愉快, 9 = 非常愉快")
             arousal, aro_rt = get_rating("唤醒度评分", "1 = 非常平静, 9 = 非常唤醒")
-
+            control, con_rt = get_rating("控制感评分", "1 = 受控制, 9 = 有掌控感")
             # Record data
             data["trial"].append(trial)
             data["image"].append(os.path.basename(image_paths[idx]))
@@ -174,7 +175,7 @@ def run_emotion(win, participant_id, session):
             data["phase"].append(phase)
             data["valence"].append(valence)
             data["arousal"].append(arousal)
-            data["rating_rt"].append(val_rt)
+            data["control"].append(control)
             data["participant_id"].append(participant_id)
             data["session"].append(session)
 
