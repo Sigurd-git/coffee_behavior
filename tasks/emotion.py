@@ -6,183 +6,209 @@ from tasks.config import *
 import os
 from glob import glob
 
+
 def run_emotion(win, participant_id, session):
     """
-    Emotion Recognition Task implementation
-    
+    Emotion Recognition and Rating Task implementation
+
     Parameters:
     - win: PsychoPy window object
     - participant_id: Participant identifier
-    - session: Session number (1: Pre-coffee, 2: Post-coffee)
+    - session: Session number
     """
     # Task parameters
     params = {
-        'num_trials': 60,
-        'stim_duration': 0.5,
-        'response_window': 3.0,
-        'isi': 1.0,
-        'practice_trials': 6,
-        'emotions': ["happy", "sad", "angry", "fearful", "neutral", "surprised"],
-        'stim_size': (400, 400),
-        'feedback_duration': FEEDBACK_DURATION,
-        'stim_dir': "stimuli/emotions"
+        "stim_duration": 6.0,  # Stimulus presentation time in seconds
+        "rating_duration": 10.0,  # Maximum time for rating
+        "isi": 0.5,  # Inter-stimulus interval
+        "images_per_category": 10,
+        "stim_size": (800, 600),  # Standard size for all images
+        "stim_dirs": {
+            "positive": "stimuli/emotions/positive",
+            "neutral": "stimuli/emotions/neutral",
+            "negative": "stimuli/emotions/negative",
+        },
     }
-
-    # Save experiment parameters
-    exp_info = {
-        'participant_id': participant_id,
-        'session': session,
-        'task': 'Emotion',
-        'parameters': params
-    }
-
-    # Create mapping for emotion responses
-    emotion_keys = {str(i+1): emotion for i, emotion in enumerate(params['emotions'])}
-
-    # Create stimuli with standardized size
-    image_stim = visual.ImageStim(
-        win=win,
-        size=params['stim_size'],
-        units="pix"
-    )
-
-    # Show instructions
-    instructions = """
-    Emotion Recognition Task:
-    
-    You will see faces showing different emotions.
-    Respond as quickly as possible with the following keys:
-    
-    1 = Happy
-    2 = Sad
-    3 = Angry
-    4 = Fearful
-    5 = Neutral
-    6 = Surprised
-    
-    Press any key to start practice.
-    """
-    show_instructions(win, instructions)
+    # # TEST parameters
+    # params = {
+    #     "stim_duration": 1.0,  # Stimulus presentation time in seconds
+    #     "rating_duration": 1.0,  # Maximum time for rating
+    #     "isi": 0.5,  # Inter-stimulus interval
+    #     "images_per_category": 1,
+    #     "stim_size": (800, 600),  # Standard size for all images
+    #     "stim_dirs": {
+    #         "positive": "stimuli/emotions/positive",
+    #         "neutral": "stimuli/emotions/neutral",
+    #         "negative": "stimuli/emotions/negative",
+    #     },
+    # }
 
     # Initialize data recording
     data = {
         "trial": [],
         "image": [],
-        "true_emotion": [],
-        "response": [],
-        "correct": [],
-        "rt": [],
+        "category": [],
+        "phase": [],
+        "valence": [],
+        "arousal": [],
+        "rating_rt": [],
+        "participant_id": [],
+        "session": [],
     }
+    filename = f"data/sub-{participant_id}_ses-{session}_task-emotion.csv"
 
-    # Load emotion stimuli files
-    image_files = []
-    image_emotions = []
-    
-    for emotion in params['emotions']:
-        files = glob(os.path.join(params['stim_dir'], f"{emotion}*.jpg"))
-        image_files.extend(files)
-        image_emotions.extend([emotion] * len(files))
+    def load_images():
+        """Load and randomize images from each category"""
+        image_paths = []
+        categories = []
 
-    def run_trial_block(num_trials, is_practice=False):
-        """Run a block of emotion recognition trials"""
-        # Select random subset of images
-        trial_indices = np.random.choice(len(image_files), num_trials, replace=False)
-        
-        for trial, idx in enumerate(trial_indices):
-            # Load and present image
-            image_path = image_files[idx]
-            true_emotion = image_emotions[idx]
-            
-            image_stim.image = image_path
-            image_stim.draw()
-            win.flip()
-            
-            # Get response
-            trial_clock = core.Clock()
-            keys = event.waitKeys(
-                maxWait=params['response_window'],
-                keyList=RESPONSE_KEYS['number_keys'][:len(params['emotions'])]
-            )
-            
-            # Process response
-            if keys:
-                rt = trial_clock.getTime()
-                response = emotion_keys[keys[0]]
-                correct = response == true_emotion
-            else:
-                rt = None
-                response = "no_response"
-                correct = False
+        for category, directory in params["stim_dirs"].items():
+            files = glob(os.path.join(directory, "*.jpg"))
+            if not files:
+                raise ValueError(f"No jpg files found in {directory}")
 
-            if not is_practice:
-                # Record data
-                data["trial"].append(trial)
-                data["image"].append(os.path.basename(image_path))
-                data["true_emotion"].append(true_emotion)
-                data["response"].append(response)
-                data["correct"].append(correct)
-                data["rt"].append(rt)
-
-            # Clear screen
-            win.flip()
-
-            # Show feedback during practice
-            if is_practice:
-                if keys:
-                    feedback = "Correct!" if correct else f"Incorrect! That was {true_emotion}"
-                else:
-                    feedback = "Too slow! Please respond faster"
-                
-                feedback_stim = visual.TextStim(
-                    win, 
-                    text=feedback, 
-                    height=win.size[1]/20
+            # Randomly select images if more than required
+            if len(files) > params["images_per_category"]:
+                files = np.random.choice(
+                    files, params["images_per_category"], replace=False
                 )
-                feedback_stim.draw()
-                win.flip()
-                core.wait(params['feedback_duration'])
+
+            image_paths.extend(files)
+            categories.extend([category] * len(files))
+
+        return image_paths, categories
+
+    def show_task_instructions(phase="baseline"):
+        """Display task instructions based on the phase"""
+        if phase == "baseline":
+            instructions = """
+            欢迎参加情绪实验。
+
+            在接下来的实验中，您将看到一系列图片。
+            请根据您的真实感受对每张图片进行评分：
+
+            效价评分：1(非常不愉快) 到 9(非常愉快)
+            唤醒度评分：1(非常平静) 到 9(非常唤醒)
+
+            按空格键继续
+            """
+        else:  # regulation phase
+            instructions = """
+            接下来是情绪调节阶段。
+
+            请尝试用不同的角度重新解读图片内容，
+            例如，将灾难场景想象为电影场景。
+
+            之后仍需对图片进行效价和唤醒度评分。
+
+            按空格键继续
+            """
+
+        instruction_text = visual.TextStim(win, text=instructions, height=30)
+        instruction_text.draw()
+        win.flip()
+        event.waitKeys(keyList=["space"])
+        win.flip()
+
+    def get_rating(prompt, instruction):
+        """Get rating response from participant using Slider
+
+        Args:
+            prompt (str): Rating prompt text
+            instruction (str): Instruction text
+
+        Returns:
+            tuple: (rating value, response time)
+        """
+        # Create text stimulus for prompt and instruction
+        rating_text = visual.TextStim(
+            win, text=f"{prompt}\n\n{instruction}", height=40, pos=(0, 200)
+        )
+
+        # Create slider instead of rating scale
+        rating_slider = visual.Slider(
+            win,
+            ticks=(1, 2, 3, 4, 5, 6, 7, 8, 9),  # Show major tick marks
+            labels=None,  # No text labels
+            granularity=1.0,  # Allow only whole numbers
+            size=(500, 50),  # Width and height of slider
+            pos=(0, -100),  # Position slightly below center
+            style=["rating"],  # Use rating style
+        )
+
+        # Get response
+        rating_clock = core.Clock()
+        while rating_slider.getRating() is None:
+            if rating_clock.getTime() > params["rating_duration"]:
+                break
+            rating_text.draw()
+            rating_slider.draw()
+            win.flip()
+
+        rating = rating_slider.getRating()
+        rt = rating_slider.getRT()
+
+        return (rating or 0, rt or 0)  # Return 0 if no response
+
+    def run_trial_block(image_paths, categories, phase="baseline"):
+        """Run a block of trials with ratings"""
+        # Randomize trial order
+        trial_order = np.random.permutation(len(image_paths))
+
+        for trial, idx in enumerate(trial_order):
+            # Present image
+            image = visual.ImageStim(
+                win, image=image_paths[idx], size=params["stim_size"]
+            )
+            image.draw()
+            win.flip()
+            core.wait(params["stim_duration"])
+
+            # Get ratings
+            valence, val_rt = get_rating("情绪效价评分", "1 = 非常不愉快, 9 = 非常愉快")
+            arousal, aro_rt = get_rating("唤醒度评分", "1 = 非常平静, 9 = 非常唤醒")
+
+            # Record data
+            data["trial"].append(trial)
+            data["image"].append(os.path.basename(image_paths[idx]))
+            data["category"].append(categories[idx])
+            data["phase"].append(phase)
+            data["valence"].append(valence)
+            data["arousal"].append(arousal)
+            data["rating_rt"].append(val_rt)
+            data["participant_id"].append(participant_id)
+            data["session"].append(session)
 
             # ISI
-            core.wait(params['isi'])
+            win.flip()
+            core.wait(params["isi"])
 
-    # Run practice trials
-    practice_text = visual.TextStim(
-        win=win, 
-        text="Practice Phase", 
-        height=win.size[1]/20
-    )
-    practice_text.draw()
-    win.flip()
-    core.wait(INSTRUCTION_DURATION)
-    
-    run_trial_block(params['practice_trials'], is_practice=True)
+    def run_regulation_phase(negative_images, negative_categories):
+        """Run the emotion regulation phase with negative images"""
+        show_task_instructions(phase="regulation")
+        run_trial_block(negative_images, negative_categories, phase="regulation")
 
-    # Start main experiment
-    exp_text = visual.TextStim(
-        win=win,
-        text="Main experiment starting...\n\nPress any key to begin",
-        height=win.size[1]/20
-    )
-    exp_text.draw()
-    win.flip()
-    event.waitKeys()
+    try:
+        # Load all images
+        image_paths, categories = load_images()
 
-    # Run main trials
-    run_trial_block(params['num_trials'], is_practice=False)
+        # Separate negative images for regulation phase
+        negative_indices = [i for i, cat in enumerate(categories) if cat == "negative"]
+        negative_images = [image_paths[i] for i in negative_indices]
+        negative_categories = [categories[i] for i in negative_indices]
 
-    # Save data
-    filename = f"data/emotion_{participant_id}_session{session}.csv"
-    df = pd.DataFrame(data)
-    df['participant_id'] = participant_id
-    df['session'] = session
-    df['task'] = 'Emotion'
-    save_data(df, filename)
+        # Run baseline phase
+        show_task_instructions(phase="baseline")
+        run_trial_block(image_paths, categories, phase="baseline")
 
-    # Calculate and display summary statistics
-    summary = df.groupby("true_emotion").agg({
-        "correct": ["mean", "std"],
-        "rt": lambda x: np.mean([r for r in x if r is not None])
-    }).round(3)
+        # Run regulation phase
+        run_regulation_phase(negative_images, negative_categories)
 
-    print("\nTask Summary:")
-    print(summary) 
+        # Save data
+        save_data(data, filename)
+
+        return True
+
+    except Exception as e:
+        print(f"Error in emotion task: {str(e)}")
+        return False

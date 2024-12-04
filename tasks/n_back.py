@@ -19,7 +19,7 @@ def run_n_back(win, participant_id, session):
         "n_back_levels": [0, 1, 2],
         "trials_per_block": 30,
         "num_blocks": 2,
-        "stim_duration": 0.5,
+        "stim_duration": 1,
         "isi": 1.5,
         "practice_trials": 10,
         "target_probability": 0.25,

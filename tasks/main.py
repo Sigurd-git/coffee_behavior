@@ -18,11 +18,11 @@ def run_experiment(win, participant_id, session):
     """
     # Define tasks and Latin square order
     tasks = {
-        # "Stroop": run_stroop,
+        "Stroop": run_stroop,
         # "GoNoGo": run_go_no_go,
         "NBack": run_n_back,
         # "BART": run_bart,
-        # "Emotion": run_emotion,
+        "Emotion": run_emotion,
     }
     num_tasks = len(tasks)
     os.makedirs(f"data", exist_ok=True)
