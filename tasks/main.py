@@ -21,11 +21,11 @@ def run_experiment(win, participant_id, session):
         "Stroop": run_stroop,
         # "GoNoGo": run_go_no_go,
         "NBack": run_n_back,
-        # "BART": run_bart,
+        "BART": run_bart,
         "Emotion": run_emotion,
     }
     num_tasks = len(tasks)
-    os.makedirs(f"data", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
     # Generate Latin square order
     latin_square = np.zeros((num_tasks, num_tasks), dtype=int)
     for i in range(num_tasks):

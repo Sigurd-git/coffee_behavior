@@ -55,7 +55,6 @@ def run_emotion(win, participant_id, session):
         "participant_id": [],
         "session": [],
     }
-    filename = f"data/sub-{participant_id}_ses-{session}_task-emotion.csv"
 
     def load_images():
         """Load and randomize images from each category"""
@@ -205,6 +204,7 @@ def run_emotion(win, participant_id, session):
         run_regulation_phase(negative_images, negative_categories)
 
         # Save data
+        filename = f"data/emotion_{participant_id}_session{session}.csv"
         save_data(data, filename)
 
         return True
