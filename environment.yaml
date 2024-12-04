@@ -1,4 +1,4 @@
-name: psychopy311
+name: psychopy
 channels:
   - conda-forge
 dependencies:
