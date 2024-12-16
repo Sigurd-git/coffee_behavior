@@ -20,7 +20,7 @@ def run_bart(win, participant_id, session):
         "num_balloons": 10,
         "max_pumps": 11,
         "practice_balloons": 1,
-        "reward_per_pump": 5,  # ¥5 per pump
+        "reward_per_pump": 5,  # ¥5 元一次
         "initial_radius": 50,
         "pump_increment": 10,
         "max_radius": 300,
