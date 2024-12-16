@@ -18,8 +18,9 @@ def run_emotion(win, participant_id, session):
     """
     # Task parameters
     params = {
-        "stim_duration": 6.0,  # Stimulus presentation time in seconds
-        "rating_duration": 5.0,  # Maximum time for rating
+        "stim_duration": 4.0,  # Stimulus presentation time in seconds
+        "regulation_duration": 6.0,  # Duration for regulation phase
+        "rating_duration": 10.0,  # Maximum time for rating
         "isi": 0.5,  # Inter-stimulus interval
         "images_per_category": 10,
         "stim_size": (800, 600),  # Standard size for all images
@@ -96,8 +97,8 @@ def run_emotion(win, participant_id, session):
             instructions = """
             接下来是情绪调节阶段。
 
-            请尝试用不同的角度重新解读图片内容，
-            例如，将灾难场景想象为电影场景。
+            请尝试用不同的角度重新解读负性图片内容，
+            例如，将灾难场景想象为电影场景，都是虚构制作或由演员演绎。
 
             之后仍需对图片进行效价和唤醒度评分。
 
@@ -110,53 +111,72 @@ def run_emotion(win, participant_id, session):
         event.waitKeys(keyList=["space"])
         win.flip()
 
-    def get_rating(prompt, instruction):
-        """Get rating response from participant using Slider
-
-        Args:
-            prompt (str): Rating prompt text
-            instruction (str): Instruction text
-
-        Returns:
-            tuple: (rating value, response time)
-        """
-        # Create text stimulus for prompt and instruction
-        rating_text = visual.TextStim(
-            win, text=f"{prompt}\n\n{instruction}", height=40, pos=(0, 200)
-        )
-
-        # Create slider instead of rating scale
-        rating_slider = visual.Slider(
+    def get_ratings(image):
+        """同时获取效价和唤醒度评分，并同时呈现图片"""
+        # 创建"下一张"按钮
+        next_button = visual.ButtonStim(
             win,
-            ticks=(1, 2, 3, 4, 5, 6, 7, 8, 9),  # Show major tick marks
-            labels=None,  # No text labels
-            granularity=1.0,  # Allow only whole numbers
-            size=(500, 50),  # Width and height of slider
-            pos=(0, -100),  # Position slightly below center
-            style=["rating"],  # Use rating style
+            text="下一张",
+            pos=(0, -250),
+            size=(100, 40),
+            buttonColors=["darkgrey", "grey"]
         )
 
-        # Get response
+        # 创建效价和唤醒度滑动条
+        valence_text = visual.TextStim(
+            win, text="情绪效价评分\n1 = 非常不愉快, 9 = 非常愉快", 
+            height=30, pos=(0, 100)
+        )
+        valence_slider = visual.Slider(
+            win,
+            ticks=(1, 2, 3, 4, 5, 6, 7, 8, 9),
+            granularity=1.0,
+            size=(500, 50),
+            pos=(0, 50),
+            style=["rating"]
+        )
+
+        arousal_text = visual.TextStim(
+            win, text="唤醒度评分\n1 = 非常平静, 9 = 非常唤醒", 
+            height=30, pos=(0, -50)
+        )
+        arousal_slider = visual.Slider(
+            win,
+            ticks=(1, 2, 3, 4, 5, 6, 7, 8, 9),
+            granularity=1.0,
+            size=(500, 50),
+            pos=(0, -100),
+            style=["rating"]
+        )
+
         rating_clock = core.Clock()
-        while rating_slider.getRating() is None:
-            if rating_clock.getTime() > params["rating_duration"]:
-                break
-            rating_text.draw()
-            rating_slider.draw()
+        while rating_clock.getTime() < params["rating_duration"]:
+            # 同时呈现图片和评分界面
+            image.draw()
+            valence_text.draw()
+            valence_slider.draw()
+            arousal_text.draw()
+            arousal_slider.draw()
+            next_button.draw()
             win.flip()
 
-        rating = rating_slider.getRating()
-        rt = rating_slider.getRT()
+            # 检查是否点击了"下一张"按钮
+            if next_button.buttonPressed:
+                if valence_slider.getRating() is not None and arousal_slider.getRating() is not None:
+                    break
 
-        return (rating or 0, rt or 0)  # Return 0 if no response
+        return (
+            valence_slider.getRating() or 0,
+            arousal_slider.getRating() or 0,
+            rating_clock.getTime()
+        )
 
     def run_trial_block(image_paths, categories, phase="baseline"):
-        """Run a block of trials with ratings"""
-        # Randomize trial order
+        """运行试次"""
         trial_order = np.random.permutation(len(image_paths))
 
         for trial, idx in enumerate(trial_order):
-            # Present image
+            # 创建并呈现图片刺激4秒
             image = visual.ImageStim(
                 win, image=image_paths[idx], size=params["stim_size"]
             )
@@ -164,18 +184,59 @@ def run_emotion(win, participant_id, session):
             win.flip()
             core.wait(params["stim_duration"])
 
-            # Get ratings
-            valence, val_rt = get_rating("情绪效价评分", "1 = 非常不愉快, 9 = 非常愉快")
-            arousal, aro_rt = get_rating("唤醒度评分", "1 = 非常平静, 9 = 非常唤醒")
-            control, con_rt = get_rating("控制感评分", "1 = 受控制, 9 = 有掌控感")
-            # Record data
+            # 获取评分（同时呈现图片）
+            valence, arousal, rt = get_ratings(image)
+
+            # 记录数据
             data["trial"].append(trial)
             data["image"].append(os.path.basename(image_paths[idx]))
             data["category"].append(categories[idx])
             data["phase"].append(phase)
             data["valence"].append(valence)
             data["arousal"].append(arousal)
-            data["control"].append(control)
+            data["rating_rt"].append(rt)
+            data["participant_id"].append(participant_id)
+            data["session"].append(session)
+
+            # ISI
+            win.flip()
+            core.wait(params["isi"])
+
+    def run_regulation_trial(image_paths, categories):
+        """运行情绪调节阶段的试次"""
+        trial_order = np.random.permutation(len(image_paths))
+        
+        # 创建调节指导语
+        regulation_instruction = visual.TextStim(
+            win,
+            text="请将灾难想象成电影场景",
+            height=30,
+            pos=(0, 250)  # 将文字放在图片上方
+        )
+
+        for trial, idx in enumerate(trial_order):
+            # 创建图片刺激
+            image = visual.ImageStim(
+                win, image=image_paths[idx], size=params["stim_size"]
+            )
+            
+            # 同时呈现图片和调节指导语6秒
+            for frame in range(int(params["regulation_duration"] * 60)):  # 假设60Hz刷新率
+                image.draw()
+                regulation_instruction.draw()
+                win.flip()
+
+            # 获取评分（同时呈现图片）
+            valence, arousal, rt = get_ratings(image)
+
+            # 记录数据
+            data["trial"].append(trial)
+            data["image"].append(os.path.basename(image_paths[idx]))
+            data["category"].append(categories[idx])
+            data["phase"].append("regulation")
+            data["valence"].append(valence)
+            data["arousal"].append(arousal)
+            data["rating_rt"].append(rt)
             data["participant_id"].append(participant_id)
             data["session"].append(session)
 
@@ -184,9 +245,9 @@ def run_emotion(win, participant_id, session):
             core.wait(params["isi"])
 
     def run_regulation_phase(negative_images, negative_categories):
-        """Run the emotion regulation phase with negative images"""
+        """运行情绪调节阶段"""
         show_task_instructions(phase="regulation")
-        run_trial_block(negative_images, negative_categories, phase="regulation")
+        run_regulation_trial(negative_images, negative_categories)
 
     try:
         # Load all images
@@ -201,7 +262,7 @@ def run_emotion(win, participant_id, session):
         show_task_instructions(phase="baseline")
         run_trial_block(image_paths, categories, phase="baseline")
 
-        # Run regulation phase
+        # Run regulation phase (only with negative images)
         run_regulation_phase(negative_images, negative_categories)
 
         # Save data

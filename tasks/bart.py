@@ -13,6 +13,7 @@ def run_bart(win, participant_id, session):
     - win: PsychoPy window object
     - participant_id: Participant identifier
     - session: Session number (1: Pre-coffee, 2: Post-coffee)
+    
     """
     # Task parameters
     params = {
@@ -23,7 +24,7 @@ def run_bart(win, participant_id, session):
         "initial_radius": 50,
         "pump_increment": 10,
         "max_radius": 300,
-        "explosion_probabilities": np.linspace(0.05, 1.05, 11),
+        "explosion_increment": 0.05,  # 5% increase per pump
         "feedback_duration": FEEDBACK_DURATION,
     }
 
@@ -54,14 +55,14 @@ def run_bart(win, participant_id, session):
 
     # Show instructions
     instructions = """
-    Balloon Pumping Game:
+    气球充气游戏：
     
-    - Press SPACE to pump the balloon
-    - Press ENTER to collect your money
-    - Be careful! The balloon might pop!
-    - Larger balloons = more money, but also more risk
+    - 按空格键给气球充气
+    - 按回车键收集现有金钱
+    - 小心！气球可能会爆炸！
+    - 气球越大 = 赚得越多，但风险也越大！
     
-    Press any key to start practice.
+    按任意键开始练习。
     """
     show_instructions(win, instructions)
 
@@ -92,10 +93,11 @@ def run_bart(win, participant_id, session):
 
                 # Show trial info
                 text_display.text = (
-                    f"Balloon #{trial + 1}\n"
-                    f"Current pumps: {pumps}\n"
-                    f"Current value: ${pumps * params['reward_per_pump']:.2f}\n"
-                    f"Total earned: ${total_earned:.2f}"
+                    f"气球 #{trial + 1}\n"
+                    f"当前充气次数: {pumps}\n"
+                    f"当前价值: ¥{pumps * params['reward_per_pump']:.2f}\n"
+                    f"累计收益: ¥{total_earned:.2f}\n"
+                    f"当前爆炸概率: {pumps * params['explosion_increment']*100:.1f}%"
                 )
                 text_display.draw()
 
@@ -114,10 +116,8 @@ def run_bart(win, participant_id, session):
                 if "space" in keys:  # Pump balloon
                     pumps += 1
                     # Check for explosion
-                    if (
-                        np.random.random()
-                        < params["explosion_probabilities"][pumps - 1]
-                    ):
+                    explosion_probability = (pumps - 1) * params["explosion_increment"]
+                    if np.random.random() < explosion_probability:
                         exploded = True
                         break
 
@@ -128,10 +128,10 @@ def run_bart(win, participant_id, session):
             if not exploded:
                 earned = pumps * params["reward_per_pump"]
                 total_earned += earned
-                outcome_text = f"You earned ${earned:.2f}!"
+                outcome_text = f"你赚到了 ¥{earned:.2f}！"
             else:
                 earned = 0
-                outcome_text = "Balloon popped! No money earned."
+                outcome_text = "气球爆炸了！没有收益。"
 
             if not is_practice:
                 # Record data
@@ -151,7 +151,7 @@ def run_bart(win, participant_id, session):
 
     # Run practice
     practice_text = visual.TextStim(
-        win=win, text="Practice Phase", height=win.size[1] / 20
+        win=win, text="练习阶段", height=win.size[1] / 20
     )
     practice_text.draw()
     win.flip()
@@ -162,7 +162,7 @@ def run_bart(win, participant_id, session):
     # Start main experiment
     exp_text = visual.TextStim(
         win=win,
-        text="Main experiment starting...\n\nPress any key to begin",
+        text="正式实验即将开始...\n\n按任意键继续",
         height=win.size[1] / 20,
     )
     exp_text.draw()
@@ -182,12 +182,12 @@ def run_bart(win, participant_id, session):
 
     # Calculate and display summary statistics
     summary = {
-        "Mean Pumps": df["pumps"].mean(),
-        "Explosion Rate": df["exploded"].mean() * 100,
-        "Total Earned": total_earned,
-        "Average Earned Per Balloon": df["earned"].mean(),
+        "平均充气次数": df["pumps"].mean(),
+        "爆炸率": df["exploded"].mean() * 100,
+        "总收益": total_earned,
+        "每个气球平均收益": df["earned"].mean(),
     }
 
-    print("\nTask Summary:")
+    print("\n任务总结:")
     for key, value in summary.items():
         print(f"{key}: {value:.2f}")
