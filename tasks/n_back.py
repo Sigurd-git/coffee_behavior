@@ -48,24 +48,35 @@ def run_n_back(win, participant_id, session):
     }
 
     # Create stimuli with standardized size
-    text_stim = visual.TextStim(win=win, height=win.size[1] / 5, color="white")
+    text_stim = visual.TextStim(win=win, height=win.size[1] / 8, color="white")
 
     def show_n_back_instructions(n):
-        """Show instructions for specific n-back level"""
+        """显示n-back任务的具体指导语"""
         if n == 0:
             inst_text = """
-            0-back task:
-            Press SPACE when you see the letter 'X'
+            欢迎来到n-back任务！我们将面对一系列的字母
+
+            0-back 任务：
+            在接下来的字母串中，
+            当你看到字母 'X' 时，请按空格键
+            反应时间较短，请尽可能快速且准确地做出反应。
             
-            Press any key to begin
+            你可以稍作休息，当准备好了，按任意键开始练习试次，
+            练习阶段有正误反馈，反应太慢也会算作错误
             """
         else:
             inst_text = f"""
-            {n}-back task:
-            Press SPACE when the current letter matches
-            the letter shown {n} position{'s' if n > 1 else ''} ago
-            
-            Press any key to begin
+            {n}-back 任务：
+            在接下来的字母串中
+            当出现的字母与上{n}个位置的字母相同时，按空格键
+            反应时间较短，请尽可能快速且准确地做出反应。
+            （如，接连呈现X M N，
+            X是N的上两个字母，M是N的上一个字母
+            我们需要记住这些过去的字母，并和新出现的字母进行对比）
+            请保证已理解任务规则
+
+            你可以稍作休息，当准备好了，按任意键开始练习，
+            练习阶段有正误反馈，反应太慢也会算作错误
             """
         show_instructions(win, inst_text)
 
@@ -107,7 +118,7 @@ def run_n_back(win, participant_id, session):
         return sequence, targets
 
     def run_block(n, num_trials, is_practice=False):
-        """Run a block of n-back trials"""
+        """运行一个n-back任务区组"""
         sequence, targets = generate_sequence(n, num_trials)
 
         block_data = {
@@ -122,11 +133,18 @@ def run_n_back(win, participant_id, session):
         # Run trials
         for i, (stim, is_target) in enumerate(zip(sequence, targets)):
             # Show fixation
+            text_stim.pos = (0, 0)  # 注视点保持在中心
             text_stim.text = "+"
             text_stim.draw()
             win.flip()
             core.wait(0.5)
 
+            # 为字母添加随机微小位移
+            random_offset = 20  # 像素偏移范围
+            x_offset = np.random.uniform(-random_offset, random_offset)
+            y_offset = np.random.uniform(-random_offset, random_offset)
+            text_stim.pos = (x_offset, y_offset)
+            
             # Show stimulus
             text_stim.text = stim
             text_stim.draw()
@@ -158,11 +176,27 @@ def run_n_back(win, participant_id, session):
 
             # Show feedback during practice
             if is_practice and i >= n:
-                feedback = "Correct!" if correct else "Incorrect!"
-                text_stim.text = feedback
-                text_stim.draw()
-                win.flip()
-                core.wait(params["feedback_duration"])
+                show_feedback = False
+                feedback = ""
+                
+                if is_target and not response_made:  # 需要按但没按
+                    show_feedback = True
+                    feedback = "错误！"
+                elif is_target and response_made:  # 需要按而且按了
+                    show_feedback = True
+                    feedback = "正确！"
+                elif not is_target and response_made:  # 不需要按但按了
+                    show_feedback = True
+                    feedback = "错误！"
+                # 不需要按且没按的情况不显示反馈
+                
+                if show_feedback:
+                    text_stim.height = win.size[1] / 25
+                    text_stim.text = feedback
+                    text_stim.draw()
+                    win.flip()
+                    core.wait(params["feedback_duration"])
+                    text_stim.height = win.size[1] / 8
 
             # ISI
             core.wait(params["isi"])
@@ -179,7 +213,7 @@ def run_n_back(win, participant_id, session):
 
         # Practice block
         practice_text = visual.TextStim(
-            win=win, text=f"{n}-back Practice Phase", height=win.size[1] / 20
+            win=win, text=f"{n}-back 练习阶段", height=win.size[1] / 20
         )
         practice_text.draw()
         win.flip()
@@ -191,8 +225,8 @@ def run_n_back(win, participant_id, session):
         for block in range(params["num_blocks"]):
             block_text = visual.TextStim(
                 win=win,
-                text=f"{n}-back Block {block+1}\n\nPress any key to begin",
-                height=win.size[1] / 20,
+                text=f"{n}-back 第{block+1}组\n正式实验阶段没有正误反馈。\n你可以稍作休息，\n当准备好了，\n继续进行字母比较，\n按任意键开始",
+                height=win.size[1] / 25,  # Reduced text size from 1/20 to 1/25
             )
             block_text.draw()
             win.flip()
@@ -207,10 +241,19 @@ def run_n_back(win, participant_id, session):
             block_data["task"] = "N-back"
             all_data.append(block_data)
 
-    # Combine all data and save
+    # 合并所有数据
     df = pd.concat(all_data, ignore_index=True)
-    filename = f"data/nback_{participant_id}_session{session}.csv"
-    save_data(df, filename)
+
+    # 计算统计数据
+    stats_df = calculate_nback_stats(df)
+
+    # 保存原始数据
+    raw_filename = f"data/nback_{participant_id}_session{session}.csv"
+    save_data(df, raw_filename)
+
+    # 保存统计数据
+    stats_filename = f"data/nback_stats_{participant_id}_session{session}.csv"
+    save_data(stats_df, stats_filename)
 
     # Calculate and display summary statistics
     summary = (
@@ -226,3 +269,45 @@ def run_n_back(win, participant_id, session):
 
     print("\nTask Summary:")
     print(summary)
+
+def calculate_nback_stats(df):
+    """计算每个block和每个n-back水平的平均反应时和正确率"""
+    stats = []
+    
+    # 计算每个block的统计数据
+    block_stats = df.groupby(['n_back', 'block']).agg({
+        'correct': 'mean',  # 正确率
+        'rt': lambda x: np.mean([r for r in x if r is not None])  # 平均反应时（排除None）
+    }).reset_index()
+    
+    # 添加block级别的统计
+    for _, row in block_stats.iterrows():
+        stats.append({
+            'level': 'block',
+            'n_back': row['n_back'],
+            'block': row['block'],
+            'accuracy': row['correct'] * 100,  # 转换为百分比
+            'mean_rt': row['rt'],
+            'participant_id': df['participant_id'].iloc[0],
+            'session': df['session'].iloc[0]
+        })
+    
+    # 计算每个n-back水平的总体统计
+    task_stats = df.groupby('n_back').agg({
+        'correct': 'mean',
+        'rt': lambda x: np.mean([r for r in x if r is not None])
+    }).reset_index()
+    
+    # 添加task级别的统计
+    for _, row in task_stats.iterrows():
+        stats.append({
+            'level': 'task',
+            'n_back': row['n_back'],
+            'block': 'all',  # 表示所有block的平均
+            'accuracy': row['correct'] * 100,  # 转换为百分比
+            'mean_rt': row['rt'],
+            'participant_id': df['participant_id'].iloc[0],
+            'session': df['session'].iloc[0]
+        })
+    
+    return pd.DataFrame(stats)

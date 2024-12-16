@@ -5,6 +5,7 @@ from .n_back import run_n_back
 from .bart import run_bart
 from .emotion import run_emotion
 import os
+from psychopy import monitors
 
 
 def run_experiment(win, participant_id, session):
@@ -18,10 +19,10 @@ def run_experiment(win, participant_id, session):
     """
     # Define tasks and Latin square order
     tasks = {
-        #"Stroop": run_stroop,
-        #"NBack": run_n_back,
-        #"BART": run_bart,
-        "Emotion": run_emotion,
+        "Stroop": run_stroop,
+        #"NBack": run_n_back,  #没问题了！
+        #"BART": run_bart,  #没问题了！
+        #"Emotion": run_emotion,
     }
     num_tasks = len(tasks)
     os.makedirs("data", exist_ok=True)

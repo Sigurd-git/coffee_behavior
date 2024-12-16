@@ -20,7 +20,7 @@ def run_bart(win, participant_id, session):
         "num_balloons": 10,
         "max_pumps": 11,
         "practice_balloons": 1,
-        "reward_per_pump": 5,  # ¥5 元一次
+        "reward_per_pump": 5,  # ¥5 per pump
         "initial_radius": 50,
         "pump_increment": 10,
         "max_radius": 300,
@@ -48,21 +48,24 @@ def run_bart(win, participant_id, session):
     # Create text display with standardized size
     text_display = visual.TextStim(
         win=win,
-        height=win.size[1] / 20,  # Smaller text for info display
+        height=win.size[1] / 25,  # Reduced text size (from 1/20 to 1/25)
         color="white",
-        pos=(0, -win.size[1] / 3),  # Position relative to screen height
+        pos=(0, -win.size[1] / 4),  # Moved up (from 1/3 to 1/4)
     )
 
     # Show instructions
     instructions = """
     气球充气游戏：
-    
-    - 按空格键给气球充气
-    - 按回车键收集现有金钱
-    - 小心！气球可能会爆炸！
+    在这个环节中，你所获得的金钱的10%将加入你的被试费！
+    调整气球大小，赚取更多金钱！奖金最高可达200元人民币！
+    - 按【空格键】给气球充气
+    - 按【回车键】收集已有金钱
+    - 小心！气球可能会爆炸！爆炸了则失去已有金钱！
     - 气球越大 = 赚得越多，但风险也越大！
+    （在屏幕下方会显示当前已获得的金钱和气球爆炸概率，
+      爆炸概率随充气次数增加而增加）
     
-    按任意键开始练习。
+    按任意键开始练习。第一个气球是练习试次，不计入被试费。
     """
     show_instructions(win, instructions)
 
@@ -128,10 +131,26 @@ def run_bart(win, participant_id, session):
             if not exploded:
                 earned = pumps * params["reward_per_pump"]
                 total_earned += earned
-                outcome_text = f"你赚到了 ¥{earned:.2f}！"
+                # Show outcome
+                text_display.text = f"你赚到了 ¥{earned:.2f}！恭喜！"
+                text_display.draw()
+                win.flip()
+                core.wait(params["feedback_duration"])
             else:
                 earned = 0
-                outcome_text = "气球爆炸了！没有收益。"
+                # Create explosion feedback text
+                explosion_text = visual.TextStim(
+                    win=win,
+                    text="气球爆炸啦！\n请再接再厉！\n按空格继续",
+                    height=win.size[1] / 20,
+                    color="white",
+                    bold=True
+                )
+                # Display explosion feedback
+                explosion_text.draw()
+                win.flip()
+                # Wait for spacebar press
+                event.waitKeys(keyList=['space'])
 
             if not is_practice:
                 # Record data
@@ -140,12 +159,6 @@ def run_bart(win, participant_id, session):
                 data["exploded"].append(exploded)
                 data["earned"].append(earned)
                 data["rt"].append(trial_clock.getTime())
-
-            # Show outcome
-            text_display.text = outcome_text
-            text_display.draw()
-            win.flip()
-            core.wait(params["feedback_duration"])
 
         return total_earned
 
@@ -188,6 +201,23 @@ def run_bart(win, participant_id, session):
         "每个气球平均收益": df["earned"].mean(),
     }
 
+    # 创建summary DataFrame
+    summary_df = pd.DataFrame([["", "", "", "", "", "", "", ""], 
+                             ["Summary Statistics", "", "", "", "", "", "", ""],
+                             ["平均充气次数", summary["平均充气次数"], "", "", "", "", "", ""],
+                             ["爆炸率(%)", summary["爆炸率"], "", "", "", "", "", ""],
+                             ["总收益(¥)", summary["总收益"], "", "", "", "", "", ""],
+                             ["每个气球平均收益(¥)", summary["每个气球平均收益"], "", "", "", "", "", ""]],
+                             columns=df.columns)
+
+    # 合并原始数据和summary
+    final_df = pd.concat([df, summary_df], ignore_index=True)
+
+    # 保存完整数据
+    filename = f"data/bart_{participant_id}_session{session}.csv"
+    save_data(final_df, filename)
+
+    # 打印summary
     print("\n任务总结:")
     for key, value in summary.items():
         print(f"{key}: {value:.2f}")
