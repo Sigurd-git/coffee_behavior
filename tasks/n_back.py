@@ -129,33 +129,40 @@ def run_n_back(win, participant_id, session):
         - sequence: list of stimuli
         - targets: list of boolean values indicating target positions
         """
-        stimuli = ['A', 'B', 'C', 'D']
+        letters = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Use all English letters
         sequence = []
         targets = []
         
-        # Ensure at least 2 targets in the sequence
-        min_targets = 2
-        target_positions = np.random.choice(
-            range(n, sequence_length), 
-            size=min_targets, 
-            replace=False
-        )
+        # For 0-back task
+        if n == 0:
+            # Generate sequence with 'X' as target
+            for i in range(sequence_length):
+                if i in [2, 5]:  # Guaranteed target positions
+                    sequence.append('X')
+                    targets.append(True)
+                else:
+                    sequence.append(np.random.choice([l for l in letters if l != 'X']))
+                    targets.append(False)
+            return sequence, targets
         
-        # Generate initial n items
+        # For n-back tasks (n > 0)
+        # First n positions are random and non-targets
         for i in range(n):
-            sequence.append(np.random.choice(stimuli))
+            sequence.append(np.random.choice(letters))
             targets.append(False)
         
-        # Generate remaining items
+        # Generate remaining positions
+        target_positions = [n+2, n+5]  # Guaranteed target positions after initial n items
+        
         for i in range(n, sequence_length):
             if i in target_positions:
-                # Create a target by using the same letter as n positions back
+                # Create target by repeating n-back letter
                 sequence.append(sequence[i-n])
                 targets.append(True)
             else:
-                # Add a random non-target letter
+                # Add non-target letter
                 prev_letter = sequence[i-n]
-                available_letters = [x for x in stimuli if x != prev_letter]
+                available_letters = [x for x in letters if x != prev_letter]
                 sequence.append(np.random.choice(available_letters))
                 targets.append(False)
         
@@ -163,7 +170,11 @@ def run_n_back(win, participant_id, session):
 
     def run_block(n, num_trials, is_practice=False):
         """运行一个n-back任务区组"""
-        sequence, targets = generate_sequence(n, num_trials)
+        # Generate appropriate sequence based on practice or main block
+        if is_practice:
+            sequence, targets = generate_practice_sequence(n)
+        else:
+            sequence, targets = generate_sequence(n, num_trials)
 
         block_data = {
             "trial": [],
@@ -189,19 +200,26 @@ def run_n_back(win, participant_id, session):
             y_offset = np.random.uniform(-random_offset, random_offset)
             text_stim.pos = (x_offset, y_offset)
             
-            # Show stimulus
+            # Show stimulus and start timing
             text_stim.text = stim
             text_stim.draw()
-            win.flip()
-
+            stim_onset = win.flip()  # 记录刺激呈现的时间戳
+            
             # Get response
-            trial_clock = core.Clock()
             keys = event.waitKeys(
                 maxWait=params["stim_duration"],
                 keyList=[RESPONSE_KEYS["confirm"]],
+                timeStamped=True  # 添加时间戳记录
             )
-            rt = trial_clock.getTime() if keys else None
-            response_made = bool(keys)
+            
+            # 计算反应时
+            if keys:
+                key, response_time = keys[0]  # keys现在返回(按键, 时间戳)的元组
+                rt = response_time - stim_onset  # 计算真实的反应时
+                response_made = True
+            else:
+                rt = None
+                response_made = False
 
             # Determine if response was correct
             correct = response_made == is_target
@@ -265,12 +283,8 @@ def run_n_back(win, participant_id, session):
         win.flip()
         core.wait(INSTRUCTION_DURATION)
 
-        if is_practice:
-            sequence, target_positions = generate_practice_sequence(n)
-        else:
-            # 保持原有的实验序列生成逻辑不变
-            ...
-
+        # Run practice block with practice sequence
+        sequence, targets = generate_practice_sequence(n)
         run_block(n, params["practice_trials"], is_practice=True)
 
         # Main blocks

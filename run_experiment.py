@@ -1,10 +1,15 @@
+import sys
+import os
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from psychopy import visual
 from tasks.main import run_experiment
 
 
 def main():
     # Create window
-    win = visual.Window(size=(1024, 800), fullscr=False, units="pix", color=[0, 0, 0],pos=(100,100))
+    win = visual.Window(size=(1024, 800), fullscr=False, units="pix", color=[0, 0, 0], pos=(100,100))
     try:
         # Get participant info
         participant_id = input("Enter participant ID: ")
