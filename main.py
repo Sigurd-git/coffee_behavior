@@ -1,6 +1,7 @@
 import numpy as np
 from tasks.stroop import run_stroop
-from tasks.go_no_go import run_go_no_go
+
+# from tasks.go_no_go import run_go_no_go
 from tasks.n_back import run_n_back
 from tasks.bart import run_bart
 from tasks.emotion import run_emotion

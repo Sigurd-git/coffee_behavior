@@ -2,7 +2,11 @@ import numpy as np
 from psychopy import visual, core, event
 import pandas as pd
 from utils.common import show_instructions, save_data
-from tasks.config import *
+from utils.config import (
+    FEEDBACK_DURATION,
+    INSTRUCTION_DURATION,
+    RESPONSE_KEYS,
+)
 
 
 def run_n_back(win, participant_id, session):
@@ -94,7 +98,11 @@ def run_n_back(win, participant_id, session):
                 else:
                     sequence.append(
                         np.random.choice(
-                            [l for l in params["letters"] if l != target_letter]
+                            [
+                                letter
+                                for letter in params["letters"]
+                                if letter != target_letter
+                            ]
                         )
                     )
                     targets.append(False)
@@ -110,7 +118,11 @@ def run_n_back(win, participant_id, session):
                     else:
                         sequence.append(
                             np.random.choice(
-                                [l for l in params["letters"] if l != sequence[i - n]]
+                                [
+                                    letter
+                                    for letter in params["letters"]
+                                    if letter != sequence[i - n]
+                                ]
                             )
                         )
                         targets.append(False)
@@ -120,11 +132,11 @@ def run_n_back(win, participant_id, session):
     def generate_practice_sequence(n, sequence_length=10):
         """
         Generate a practice sequence that guarantees target trials
-        
+
         Parameters:
         - n: n-back value
         - sequence_length: length of the sequence
-        
+
         Returns:
         - sequence: list of stimuli
         - targets: list of boolean values indicating target positions
@@ -132,40 +144,47 @@ def run_n_back(win, participant_id, session):
         letters = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Use all English letters
         sequence = []
         targets = []
-        
+
         # For 0-back task
         if n == 0:
             # Generate sequence with 'X' as target
             for i in range(sequence_length):
                 if i in [2, 5]:  # Guaranteed target positions
-                    sequence.append('X')
+                    sequence.append("X")
                     targets.append(True)
                 else:
-                    sequence.append(np.random.choice([l for l in letters if l != 'X']))
+                    sequence.append(
+                        np.random.choice(
+                            [letter for letter in letters if letter != "X"]
+                        )
+                    )
                     targets.append(False)
             return sequence, targets
-        
+
         # For n-back tasks (n > 0)
         # First n positions are random and non-targets
         for i in range(n):
             sequence.append(np.random.choice(letters))
             targets.append(False)
-        
+
         # Generate remaining positions
-        target_positions = [n+2, n+5]  # Guaranteed target positions after initial n items
-        
+        target_positions = [
+            n + 2,
+            n + 5,
+        ]  # Guaranteed target positions after initial n items
+
         for i in range(n, sequence_length):
             if i in target_positions:
                 # Create target by repeating n-back letter
-                sequence.append(sequence[i-n])
+                sequence.append(sequence[i - n])
                 targets.append(True)
             else:
                 # Add non-target letter
-                prev_letter = sequence[i-n]
+                prev_letter = sequence[i - n]
                 available_letters = [x for x in letters if x != prev_letter]
                 sequence.append(np.random.choice(available_letters))
                 targets.append(False)
-        
+
         return sequence, targets
 
     def run_block(n, num_trials, is_practice=False):
@@ -199,19 +218,19 @@ def run_n_back(win, participant_id, session):
             x_offset = np.random.uniform(-random_offset, random_offset)
             y_offset = np.random.uniform(-random_offset, random_offset)
             text_stim.pos = (x_offset, y_offset)
-            
+
             # Show stimulus and start timing
             text_stim.text = stim
             text_stim.draw()
             stim_onset = win.flip()  # 记录刺激呈现的时间戳
-            
+
             # Get response
             keys = event.waitKeys(
                 maxWait=params["stim_duration"],
                 keyList=[RESPONSE_KEYS["confirm"]],
-                timeStamped=True  # 添加时间戳记录
+                timeStamped=True,  # 添加时间戳记录
             )
-            
+
             # 计算反应时
             if keys:
                 key, response_time = keys[0]  # keys现在返回(按键, 时间戳)的元组
@@ -240,9 +259,11 @@ def run_n_back(win, participant_id, session):
             if is_practice and i >= n:
                 show_feedback = False
                 feedback = ""
-                
-                print(f"Debug - Target: {is_target}, Response: {response_made}")  # 添加调试信息
-                
+
+                print(
+                    f"Debug - Target: {is_target}, Response: {response_made}"
+                )  # 添加调试信息
+
                 if is_target and not response_made:  # 需要按但没按
                     show_feedback = True
                     feedback = "错误！"
@@ -253,7 +274,7 @@ def run_n_back(win, participant_id, session):
                     show_feedback = True
                     feedback = "错误！"
                 # 不需要按且没按的情况不显示反馈
-                
+
                 if show_feedback:
                     text_stim.height = win.size[1] / 25
                     text_stim.text = feedback
@@ -291,7 +312,7 @@ def run_n_back(win, participant_id, session):
         for block in range(params["num_blocks"]):
             block_text = visual.TextStim(
                 win=win,
-                text=f"{n}-back 第{block+1}组\n正式实验阶段没有正误反馈。\n你可以稍作休息，\n当准备好了，\n继续进行字母比较，\n按任意键开始",
+                text=f"{n}-back 第{block + 1}组\n正式实验阶段没有正误反馈。\n你可以稍作休息，\n当准备好了，\n继续进行字母比较，\n按任意键开始",
                 height=win.size[1] / 25,  # Reduced text size from 1/20 to 1/25
             )
             block_text.draw()
@@ -336,44 +357,63 @@ def run_n_back(win, participant_id, session):
     print("\nTask Summary:")
     print(summary)
 
+
 def calculate_nback_stats(df):
     """计算每个block和每个n-back水平的平均反应时和正确率"""
     stats = []
-    
+
     # 计算每个block的统计数据
-    block_stats = df.groupby(['n_back', 'block']).agg({
-        'correct': 'mean',  # 计算平均正确率
-        'rt': lambda x: np.mean([r for r in x if r is not None])  # 平均反应时（排除None）
-    }).reset_index()
-    
+    block_stats = (
+        df.groupby(["n_back", "block"])
+        .agg(
+            {
+                "correct": "mean",  # 计算平均正确率
+                "rt": lambda x: np.mean(
+                    [r for r in x if r is not None]
+                ),  # 平均反应时（排除None）
+            }
+        )
+        .reset_index()
+    )
+
     # 添加block级别的统计
     for _, row in block_stats.iterrows():
-        stats.append({
-            'level': 'block',
-            'n_back': row['n_back'],
-            'block': row['block'],
-            'accuracy': row['correct'] * 100,  # 转换为百分比
-            'mean_rt': row['rt'],
-            'participant_id': df['participant_id'].iloc[0],
-            'session': df['session'].iloc[0]
-        })
-    
+        stats.append(
+            {
+                "level": "block",
+                "n_back": row["n_back"],
+                "block": row["block"],
+                "accuracy": row["correct"] * 100,  # 转换为百分比
+                "mean_rt": row["rt"],
+                "participant_id": df["participant_id"].iloc[0],
+                "session": df["session"].iloc[0],
+            }
+        )
+
     # 计算每个n-back水平的总体统计
-    task_stats = df.groupby('n_back').agg({
-        'correct': 'mean',
-        'rt': lambda x: np.mean([r for r in x if r is not None])
-    }).reset_index()
-    
+    task_stats = (
+        df.groupby("n_back")
+        .agg(
+            {
+                "correct": "mean",
+                "rt": lambda x: np.mean([r for r in x if r is not None]),
+            }
+        )
+        .reset_index()
+    )
+
     # 添加task级别的统计
     for _, row in task_stats.iterrows():
-        stats.append({
-            'level': 'task',
-            'n_back': row['n_back'],
-            'block': 'all',  # 表示所有block的平均
-            'accuracy': row['correct'] * 100,  # 转换为百分比
-            'mean_rt': row['rt'],
-            'participant_id': df['participant_id'].iloc[0],
-            'session': df['session'].iloc[0]
-        })
-    
+        stats.append(
+            {
+                "level": "task",
+                "n_back": row["n_back"],
+                "block": "all",  # 表示所有block的平均
+                "accuracy": row["correct"] * 100,  # 转换为百分比
+                "mean_rt": row["rt"],
+                "participant_id": df["participant_id"].iloc[0],
+                "session": df["session"].iloc[0],
+            }
+        )
+
     return pd.DataFrame(stats)
