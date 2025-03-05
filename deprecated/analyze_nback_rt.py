@@ -26,7 +26,7 @@ def analyze_nback_correct_rt():
             df = pd.read_csv(file)
 
             # 只选择正确的试次和目标试次（target为True且做出了正确反应）
-            correct_trials = df[(df["target"] is True) & (df["correct"] is True)]
+            correct_trials = df[(df["target"] == True) & (df["correct"] == True)]
 
             # 计算每个n-back水平的平均反应时
             for n_back in df["n_back"].unique():
@@ -90,7 +90,7 @@ def analyze_nback_correct_rt():
                     & (results_df["participant_id"] == pid)
                 ]["mean_rt"].iloc[0]
                 session1_rt.append(s1_rt)
-                session2_rt.append(s2_rt)[[[[[[[[[[[[]]]]]]]]]]]]
+                session2_rt.append(s2_rt)
 
             if len(session1_rt) > 1:  # 确保有足够的样本进行t检验
                 t_stat, p_val = stats.ttest_rel(session1_rt, session2_rt)
@@ -128,7 +128,7 @@ def analyze_nback_correct_rt():
             plt.text(x, mean_rt, f"{mean_rt:.0f}", ha="center", va="bottom")
 
     plt.tight_layout()
-    plt.savefig("nback_correct_rt_comparison.png", dpi=300, bbox_inches="tight")
+    plt.savefig("output/nback_correct_rt_comparison.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 

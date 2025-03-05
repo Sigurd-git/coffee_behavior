@@ -1,4 +1,4 @@
-trial,word,color,response,rt,correct,block
+                        trial,word,color,response,rt,correct,block
 0,蓝,Green,2,0.8033974999561906,True,0
 1,红,Green,2,0.06556259992066771,True,0
 2,蓝,Green,2,0.10037000000011176,True,0
