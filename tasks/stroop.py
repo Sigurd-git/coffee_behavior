@@ -21,8 +21,8 @@ def run_stroop(win, participant_id, session):
         "isi": 1.0,  # 刺激间隔时间
         "num_practice_stimuli": 2,  # 练习试次数量
         "colors": {"Red": [1, -1, -1], "Green": [-1, 1, -1], "Blue": [-1, -1, 1]},  # 颜色RGB值
-        "words": ["红色", "绿色", "蓝色"],  # 文字刺激
-        "neutral_word": "白色",  # 中性词
+        "words": ["红", "绿", "蓝"],  # 文字刺激
+        "neutral_word": "白",  # 中性词
     }
     # # develope 任务参数设置
     # params = {

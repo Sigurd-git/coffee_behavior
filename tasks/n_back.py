@@ -117,6 +117,50 @@ def run_n_back(win, participant_id, session):
 
         return sequence, targets
 
+    def generate_practice_sequence(n, sequence_length=10):
+        """
+        Generate a practice sequence that guarantees target trials
+        
+        Parameters:
+        - n: n-back value
+        - sequence_length: length of the sequence
+        
+        Returns:
+        - sequence: list of stimuli
+        - targets: list of boolean values indicating target positions
+        """
+        stimuli = ['A', 'B', 'C', 'D']
+        sequence = []
+        targets = []
+        
+        # Ensure at least 2 targets in the sequence
+        min_targets = 2
+        target_positions = np.random.choice(
+            range(n, sequence_length), 
+            size=min_targets, 
+            replace=False
+        )
+        
+        # Generate initial n items
+        for i in range(n):
+            sequence.append(np.random.choice(stimuli))
+            targets.append(False)
+        
+        # Generate remaining items
+        for i in range(n, sequence_length):
+            if i in target_positions:
+                # Create a target by using the same letter as n positions back
+                sequence.append(sequence[i-n])
+                targets.append(True)
+            else:
+                # Add a random non-target letter
+                prev_letter = sequence[i-n]
+                available_letters = [x for x in stimuli if x != prev_letter]
+                sequence.append(np.random.choice(available_letters))
+                targets.append(False)
+        
+        return sequence, targets
+
     def run_block(n, num_trials, is_practice=False):
         """运行一个n-back任务区组"""
         sequence, targets = generate_sequence(n, num_trials)
@@ -130,15 +174,15 @@ def run_n_back(win, participant_id, session):
             "correct": [],
         }
 
+        # Show fixation at the beginning of block
+        text_stim.pos = (0, 0)
+        text_stim.text = "+"
+        text_stim.draw()
+        win.flip()
+        core.wait(0.5)
+
         # Run trials
         for i, (stim, is_target) in enumerate(zip(sequence, targets)):
-            # Show fixation
-            text_stim.pos = (0, 0)  # 注视点保持在中心
-            text_stim.text = "+"
-            text_stim.draw()
-            win.flip()
-            core.wait(0.5)
-
             # 为字母添加随机微小位移
             random_offset = 20  # 像素偏移范围
             x_offset = np.random.uniform(-random_offset, random_offset)
@@ -179,6 +223,8 @@ def run_n_back(win, participant_id, session):
                 show_feedback = False
                 feedback = ""
                 
+                print(f"Debug - Target: {is_target}, Response: {response_made}")  # 添加调试信息
+                
                 if is_target and not response_made:  # 需要按但没按
                     show_feedback = True
                     feedback = "错误！"
@@ -218,6 +264,12 @@ def run_n_back(win, participant_id, session):
         practice_text.draw()
         win.flip()
         core.wait(INSTRUCTION_DURATION)
+
+        if is_practice:
+            sequence, target_positions = generate_practice_sequence(n)
+        else:
+            # 保持原有的实验序列生成逻辑不变
+            ...
 
         run_block(n, params["practice_trials"], is_practice=True)
 
@@ -276,7 +328,7 @@ def calculate_nback_stats(df):
     
     # 计算每个block的统计数据
     block_stats = df.groupby(['n_back', 'block']).agg({
-        'correct': 'mean',  # 正确率
+        'correct': 'mean',  # 计算平均正确率
         'rt': lambda x: np.mean([r for r in x if r is not None])  # 平均反应时（排除None）
     }).reset_index()
     

@@ -4,7 +4,7 @@ from tasks.main import run_experiment
 
 def main():
     # Create window
-    win = visual.Window(size=(1024, 512), fullscr=False, units="pix", color=[0, 0, 0],pos=(100,100))
+    win = visual.Window(size=(1024, 800), fullscr=False, units="pix", color=[0, 0, 0],pos=(100,100))
     try:
         # Get participant info
         participant_id = input("Enter participant ID: ")

@@ -328,7 +328,7 @@ def run_emotion(win, participant_id, session):
         # 创建调节指导语
         regulation_instruction = visual.TextStim(
             win,
-            text="请将图片想象成电影场景",
+            text="请将图片想象成虚构制作或由演员演绎",
             height=30,
             pos=(0, 250)  # 将文字放在图片上方
         )
@@ -367,16 +367,8 @@ def run_emotion(win, participant_id, session):
         """运行情绪调节阶段"""
         show_task_instructions(phase="regulation")
         
-        regulation_text = visual.TextStim(
-            win,
-            text="请将图片想象成电影场景",  # 修改提示语
-            pos=(0, 300),  # 位置在图片上方
-            height=30,
-            color='white',
-            font='SimHei'
-        )
-
-        for image_path, category in zip(images, categories):
+        # 使用enumerate来追踪trial编号
+        for trial, (image_path, category) in enumerate(zip(images, categories)):
             # 创建图片刺激
             image = visual.ImageStim(
                 win,
@@ -384,25 +376,38 @@ def run_emotion(win, participant_id, session):
                 size=params["stim_size"]
             )
             
-            # 呈现图片和提示语
-            timer = core.Clock()
-            while timer.getTime() < params["regulation_duration"]:
+            regulation_text = visual.TextStim(
+                win,
+                text="请将图片想象成电影场景",
+                pos=(0, 300),
+                height=30,
+                color='white',
+                font='SimHei'
+            )
+            
+            # 呈现图片和提示语规定的时间
+            for frame in range(int(params["regulation_duration"] * 60)):  # 假设60Hz刷新率
                 image.draw()
                 regulation_text.draw()
                 win.flip()
-                
-            # 获取评分
-            ratings = get_ratings(image)
             
-            # 记录数据
-            data.append({
-                'image': os.path.basename(image_path),
-                'category': category,
-                'phase': 'regulation',
-                'valence': ratings[0],
-                'arousal': ratings[1],
-                'rating_time': ratings[2]
-            })
+            # 获取评分
+            valence, arousal, rt = get_ratings(image)
+            
+            # 使用与其他函数相同的数据记录方式
+            data["trial"].append(trial)
+            data["image"].append(os.path.basename(image_path))
+            data["category"].append(category)
+            data["phase"].append("regulation")
+            data["valence"].append(valence)
+            data["arousal"].append(arousal)
+            data["rating_rt"].append(rt)
+            data["participant_id"].append(participant_id)
+            data["session"].append(session)
+
+            # ISI
+            win.flip()
+            core.wait(params["isi"])
 
     # 在保存数据之前添加统计分析
     def calculate_emotion_stats(df):
