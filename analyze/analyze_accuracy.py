@@ -376,10 +376,10 @@ if __name__ == "__main__":
         "plot_config": {
             "x_var": "condition",
             "y_var": "explosion_rate",
-            "title": "BART Task Accuracy Comparison",
+            "title": "BART Task Explosion Rate Comparison",
             "xlabel": "Session",
-            "ylabel": "Accuracy (%)",
-            "output_file": "bart_accuracy_comparison.png",
+            "ylabel": "Explosion Rate (%)",
+            "output_file": "bart_explosion_rate_comparison.png",
         },
         "output_dir": "output",
     }

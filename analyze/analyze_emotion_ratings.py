@@ -6,6 +6,8 @@ from glob import glob
 import os
 from scipy import stats
 from utils.plot import add_significance_markers
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
 
 # Set font for displaying text
 plt.rcParams["font.sans-serif"] = ["Arial"]
@@ -201,7 +203,20 @@ def run_emotion_analysis(df, measure):
                 "session2_mean": np.mean(session2_data),
             }
 
-    return results
+    # Create a formula for two-way ANOVA
+    formula = f"{measure} ~ C(session) * C(emotion_type)"
+
+    # Fit the model
+    model = ols(formula, data=df).fit()
+
+    # Get ANOVA table
+    try:
+        anova_table = sm.stats.anova_lm(model, typ=2)
+    except Exception as e:
+        print(f"Error in ANOVA analysis: {e}")
+        anova_table = None
+
+    return results, anova_table
 
 
 def plot_emotion_ratings(df, measure, title, ylabel, output_file=None):
@@ -240,7 +255,7 @@ def plot_emotion_ratings(df, measure, title, ylabel, output_file=None):
     plt.ylabel(ylabel)
 
     # Add significance markers
-    stats_results = run_emotion_analysis(df, measure)
+    stats_results, anova_table = run_emotion_analysis(df, measure)
     for i, emotion_type in enumerate(df["emotion_type"].unique()):
         if emotion_type in stats_results:
             result = stats_results[emotion_type]
@@ -328,7 +343,7 @@ def analyze_group_data(df, output_dir, group_name):
         print(desc_stats)
 
         # Run statistical tests
-        stats_results = run_emotion_analysis(df, measure)
+        stats_results, anova_table = run_emotion_analysis(df, measure)
 
         if stats_results:
             print(f"\n{measure_name} statistical analysis results:")
@@ -349,7 +364,8 @@ def analyze_group_data(df, output_dir, group_name):
                 print(f"t = {results['t_stat']:.3f}, p = {results['p_val']:.3f}")
                 print(f"Pre-coffee mean: {results['session1_mean']:.2f}")
                 print(f"Post-coffee mean: {results['session2_mean']:.2f}")
-
+            print(f"\nANOVA table for {measure_name}:")
+            print(anova_table)
         # Create visualization
         plot_title = (
             f"{group_name.upper()} Group Emotion Experiment {measure_name} Comparison"
