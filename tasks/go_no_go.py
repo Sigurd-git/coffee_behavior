@@ -2,7 +2,13 @@ import numpy as np
 from psychopy import visual, core, event
 import pandas as pd
 from utils.common import show_instructions, save_data
-from .config import *
+from utils.config import (
+    FEEDBACK_DURATION,
+    INSTRUCTION_DURATION,
+    MIN_ISI,
+    MAX_ISI,
+    RESPONSE_KEYS,
+)
 
 
 def run_go_no_go(win, participant_id, session):

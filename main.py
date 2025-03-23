@@ -1,11 +1,12 @@
 import numpy as np
-from .stroop import run_stroop
-from .go_no_go import run_go_no_go
-from .n_back import run_n_back
-from .bart import run_bart
-from .emotion import run_emotion
+from tasks.stroop import run_stroop
+
+# from tasks.go_no_go import run_go_no_go
+from tasks.n_back import run_n_back
+from tasks.bart import run_bart
+from tasks.emotion import run_emotion
 import os
-from psychopy import monitors
+from psychopy import visual
 
 
 def run_experiment(win, participant_id, session):
@@ -20,8 +21,8 @@ def run_experiment(win, participant_id, session):
     # Define tasks and Latin square order
     tasks = {
         "Stroop": run_stroop,
-        "NBack": run_n_back,  #没问题了！
-        "BART": run_bart,  #没问题了！
+        "NBack": run_n_back,  # 没问题了！
+        "BART": run_bart,  # 没问题了！
         "Emotion": run_emotion,
     }
     num_tasks = len(tasks)
@@ -48,3 +49,27 @@ def run_experiment(win, participant_id, session):
         task_func(win, participant_id, session)
 
     print("All tasks completed!")
+
+
+def main():
+    # Create window
+    win = visual.Window(
+        size=(1024, 800), fullscr=False, units="pix", color=[0, 0, 0], pos=(100, 100)
+    )
+    try:
+        # Get participant info
+        participant_id = input("Enter participant ID: ")
+        session = int(input("Enter session (1 = Pre-coffee, 2 = Post-coffee): "))
+        # participant_id = "1"
+        # session = 1
+
+        # Run experiment
+        run_experiment(win, participant_id, session)
+
+    finally:
+        # Clean up
+        win.close()
+
+
+if __name__ == "__main__":
+    main()

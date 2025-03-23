@@ -2,7 +2,7 @@ import numpy as np
 from psychopy import visual, core, event
 import pandas as pd
 from utils.common import show_instructions, save_data
-from tasks.config import *
+from utils.config import FEEDBACK_DURATION, INSTRUCTION_DURATION
 
 
 def run_bart(win, participant_id, session):
@@ -13,7 +13,7 @@ def run_bart(win, participant_id, session):
     - win: PsychoPy window object
     - participant_id: Participant identifier
     - session: Session number (1: Pre-coffee, 2: Post-coffee)
-    
+
     """
     # Task parameters
     params = {
@@ -100,7 +100,7 @@ def run_bart(win, participant_id, session):
                     f"当前充气次数: {pumps}\n"
                     f"当前价值: ¥{pumps * params['reward_per_pump']:.2f}\n"
                     f"累计收益: ¥{total_earned:.2f}\n"
-                    f"当前爆炸概率: {pumps * params['explosion_increment']*100:.1f}%"
+                    f"当前爆炸概率: {pumps * params['explosion_increment'] * 100:.1f}%"
                 )
                 text_display.draw()
 
@@ -144,13 +144,13 @@ def run_bart(win, participant_id, session):
                     text="气球爆炸啦！\n请再接再厉！\n按空格继续",
                     height=win.size[1] / 20,
                     color="white",
-                    bold=True
+                    bold=True,
                 )
                 # Display explosion feedback
                 explosion_text.draw()
                 win.flip()
                 # Wait for spacebar press
-                event.waitKeys(keyList=['space'])
+                event.waitKeys(keyList=["space"])
 
             if not is_practice:
                 # Record data
@@ -163,9 +163,7 @@ def run_bart(win, participant_id, session):
         return total_earned
 
     # Run practice
-    practice_text = visual.TextStim(
-        win=win, text="练习阶段", height=win.size[1] / 20
-    )
+    practice_text = visual.TextStim(win=win, text="练习阶段", height=win.size[1] / 20)
     practice_text.draw()
     win.flip()
     core.wait(INSTRUCTION_DURATION)
@@ -202,13 +200,26 @@ def run_bart(win, participant_id, session):
     }
 
     # 创建summary DataFrame
-    summary_df = pd.DataFrame([["", "", "", "", "", "", "", ""], 
-                             ["Summary Statistics", "", "", "", "", "", "", ""],
-                             ["平均充气次数", summary["平均充气次数"], "", "", "", "", "", ""],
-                             ["爆炸率(%)", summary["爆炸率"], "", "", "", "", "", ""],
-                             ["总收益(¥)", summary["总收益"], "", "", "", "", "", ""],
-                             ["每个气球平均收益(¥)", summary["每个气球平均收益"], "", "", "", "", "", ""]],
-                             columns=df.columns)
+    summary_df = pd.DataFrame(
+        [
+            ["", "", "", "", "", "", "", ""],
+            ["Summary Statistics", "", "", "", "", "", "", ""],
+            ["平均充气次数", summary["平均充气次数"], "", "", "", "", "", ""],
+            ["爆炸率(%)", summary["爆炸率"], "", "", "", "", "", ""],
+            ["总收益(¥)", summary["总收益"], "", "", "", "", "", ""],
+            [
+                "每个气球平均收益(¥)",
+                summary["每个气球平均收益"],
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            ],
+        ],
+        columns=df.columns,
+    )
 
     # 合并原始数据和summary
     final_df = pd.concat([df, summary_df], ignore_index=True)

@@ -162,5 +162,4 @@ cython_debug/
 #.idea/
 .vscode/launch.json
 .vscode/settings.json
-data/
 .DS_Store
