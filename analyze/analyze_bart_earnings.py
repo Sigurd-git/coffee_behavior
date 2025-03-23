@@ -225,14 +225,14 @@ def analyze_bart_earnings():
         return
 
     # 将数据分为实验组（除8号外）和对照组（8号）
-    exp_df = earnings_df[earnings_df["participant_id"] != 8]
-    control_df = earnings_df[earnings_df["participant_id"] == 8]
+    exp_df = earnings_df[earnings_df["participant_id"] > 8]
+    # control_df = earnings_df[earnings_df["participant_id"] == 8]
 
     print("\n==== Analyzing experimental group data (excluding subject 8) ====")
     analyze_group_earnings(exp_df, output_dir, "exp")
 
-    print("\n==== Analyzing control group data (only subject 8) ====")
-    analyze_group_earnings(control_df, output_dir, "control")
+    # print("\n==== Analyzing control group data (only subject 8) ====")
+    # analyze_group_earnings(control_df, output_dir, "control")
 
 
 def analyze_group_earnings(df, output_dir, group_name):

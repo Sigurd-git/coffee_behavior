@@ -172,10 +172,16 @@ def analyze_experiment_accuracy(
 
     # 3. 如有需要，根据被试ID过滤数据
     if exclude_participant is not None:
-        df = df[df["participant_id"] != exclude_participant]
+        if isinstance(exclude_participant, list):
+            df = df[~df["participant_id"].isin(exclude_participant)]
+        else:
+            df = df[df["participant_id"] != exclude_participant]
 
     if only_participant is not None:
-        df = df[df["participant_id"] == only_participant]
+        if isinstance(only_participant, list):
+            df = df[df["participant_id"].isin(only_participant)]
+        else:
+            df = df[df["participant_id"] == only_participant]
 
     # 如果过滤后没有数据，则跳过当前实验
     if df.empty:
@@ -399,28 +405,28 @@ if __name__ == "__main__":
             "Experiment Group " + config["plot_config"]["title"]
         )
 
-    exp_results = analyze_combined_accuracy(config_list, exclude_participant=8)
+    exp_results = analyze_combined_accuracy(config_list, exclude_participant=[0,1,2,3,4,5,6,7,8])
 
-    # 分析对照组数据（只有8号被试）
-    print("\n==== Analyzing control group data (only subject 8) ====")
-    control_config_list = []
-    for config in config_list:
-        # 创建新配置，避免修改原始配置
-        control_config = config.copy()
-        control_config["plot_config"] = config["plot_config"].copy()
+    # # 分析对照组数据（只有8号被试）
+    # print("\n==== Analyzing control group data (only subject 8) ====")
+    # control_config_list = []
+    # for config in config_list:
+    #     # 创建新配置，避免修改原始配置
+    #     control_config = config.copy()
+    #     control_config["plot_config"] = config["plot_config"].copy()
 
-        # 更新输出文件名，加上control前缀
-        output_file = config["plot_config"]["output_file"]
-        control_config["plot_config"]["output_file"] = output_file.replace(
-            "_exp.png", "_control.png"
-        )
-        control_config["plot_config"]["title"] = output_file.replace(
-            "Experiment Group", "Control Group"
-        )
+    #     # 更新输出文件名，加上control前缀
+    #     output_file = config["plot_config"]["output_file"]
+    #     control_config["plot_config"]["output_file"] = output_file.replace(
+    #         "_exp.png", "_control.png"
+    #     )
+    #     control_config["plot_config"]["title"] = output_file.replace(
+    #         "Experiment Group", "Control Group"
+    #     )
 
-        control_config_list.append(control_config)
+    #     control_config_list.append(control_config)
 
-    control_results = analyze_combined_accuracy(control_config_list, only_participant=8)
+    # control_results = analyze_combined_accuracy(control_config_list, only_participant=8)
 
     print(
         "\nStarting analysis of individual experiment accuracy for experimental group..."

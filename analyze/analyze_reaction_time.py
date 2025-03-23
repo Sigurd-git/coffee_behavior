@@ -346,7 +346,7 @@ def analyze_combined_experiments(
     -----------
     experiments_config : list
         实验配置列表，每个元素为一个实验配置字典
-    exclude_participant : int or list
+    exclude_participant : int or lis-t
         要排除的被试ID，如果为None则不排除任何被试
     only_participant : int or list
         只分析特定被试ID，如果为None则分析所有被试
@@ -459,30 +459,30 @@ if __name__ == "__main__":
         )
 
     print("Starting analysis of individual experiments for experimental group...")
-    exp_results = analyze_combined_experiments(config_list, exclude_participant=8)
+    exp_results = analyze_combined_experiments(config_list, exclude_participant=[0,1,2,3,4,5,6,7,8])
 
-    # 分析对照组数据（只有8号被试）
-    print("\n==== Analyzing control group data (only subject 8) ====")
-    control_config_list = []
-    for config in config_list:
-        # 创建新配置，避免修改原始配置
-        control_config = config.copy()
-        control_config["plot_config"] = config["plot_config"].copy()
+    # # 分析对照组数据（只有8号被试）
+    # print("\n==== Analyzing control group data (only subject 8) ====")
+    # control_config_list = []
+    # for config in config_list:
+    #     # 创建新配置，避免修改原始配置
+    #     control_config = config.copy()
+    #     control_config["plot_config"] = config["plot_config"].copy()
 
-        # 更新输出文件名，加上control前缀
-        output_file = config["plot_config"]["output_file"]
-        control_config["plot_config"]["output_file"] = output_file.replace(
-            "_exp.png", "_control.png"
-        )
-        control_config["plot_config"]["title"] = control_config["plot_config"][
-            "title"
-        ].replace("Experimental group", "Control group")
+    #     # 更新输出文件名，加上control前缀
+    #     output_file = config["plot_config"]["output_file"]
+    #     control_config["plot_config"]["output_file"] = output_file.replace(
+    #         "_exp.png", "_control.png"
+    #     )
+    #     control_config["plot_config"]["title"] = control_config["plot_config"][
+    #         "title"
+    #     ].replace("Experimental group", "Control group")
 
-        control_config_list.append(control_config)
+    #     control_config_list.append(control_config)
 
-    print("Starting analysis of individual experiments for control group...")
-    control_results = analyze_combined_experiments(
-        control_config_list, only_participant=8
-    )
+    # print("Starting analysis of individual experiments for control group...")
+    # control_results = analyze_combined_experiments(
+    #     control_config_list, only_participant=8
+    # )
 
     print("Analysis completed!")

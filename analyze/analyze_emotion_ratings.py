@@ -298,15 +298,15 @@ def analyze_emotion_ratings():
         print("No valid emotion experiment data found")
         return
 
-    # 将数据分为实验组（除8号外）和对照组（8号）
-    exp_df = ratings_df[ratings_df["participant_id"] != 8]
-    control_df = ratings_df[ratings_df["participant_id"] == 8]
+    # # 将数据分为实验组（除8号外）和对照组（8号）
+    exp_df = ratings_df[ratings_df["participant_id"] > 8]
+    # control_df = ratings_df[ratings_df["participant_id"] == 8]
 
-    print("\n==== Analyzing experimental group data (excluding subject 8) ====")
+    # print("\n==== Analyzing experimental group data (excluding subject 8) ====")
     analyze_group_data(exp_df, output_dir, "exp")
 
-    print("\n==== Analyzing control group data (only subject 8) ====")
-    analyze_group_data(control_df, output_dir, "control")
+    # print("\n==== Analyzing control group data (only subject 8) ====")
+    # analyze_group_data(control_df, output_dir, "control")
 
 
 def analyze_group_data(df, output_dir, group_name):
