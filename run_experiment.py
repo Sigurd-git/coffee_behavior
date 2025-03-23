@@ -14,8 +14,7 @@ def main():
         # Get participant info
         participant_id = input("Enter participant ID: ")
         session = int(input("Enter session (1 = Pre-coffee, 2 = Post-coffee): "))
-        # participant_id = "1"
-        # session = 1
+
 
         # Run experiment
         run_experiment(win, participant_id, session)
@@ -27,3 +26,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

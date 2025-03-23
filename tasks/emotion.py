@@ -119,11 +119,7 @@ def run_emotion(win, participant_id, session):
 欢迎参加情绪实验，开始前您可作适当休息。
 
 在接下来的实验中，您将看到一系列图片。
-图片将呈现6秒，之后10秒时间您需要
-对图片进行效价：情绪的正负性体验
-和唤醒度：情绪的激活程度的评分。
-
-请根据您的真实感受对每张图片进行评分：
+图片将呈现6秒，之后10秒时间您需要对每张图片进行评分：
 
 效价评分: 1(让您感觉非常不愉快) 到 9(让您感觉非常愉快)
 唤醒度评分: 1(让您感到非常平静) 到 9(让您感到非常兴奋、紧张或激动)
@@ -439,19 +435,23 @@ def run_emotion(win, participant_id, session):
         # Load all images and get pre/post coffee sets
         pre_coffee_images, pre_coffee_categories, post_coffee_images, post_coffee_categories = load_images()
 
-        # 根据session选择使用哪组图片
-        if session == 1:  # 咖啡前
-            # 创建随机顺序，但保持图片和类别对应关系
+        # 根据被试编号的奇偶性和session来决定使用哪组图片
+        is_odd_participant = int(participant_id) % 2 == 1
+
+        if (is_odd_participant and session == 1) or (not is_odd_participant and session == 2):
+            # 奇数被试的咖啡前 或 偶数被试的咖啡后：使用pre_coffee图片
             trial_order = np.random.permutation(len(pre_coffee_images))
             current_images = [pre_coffee_images[i] for i in trial_order]
             current_categories = [pre_coffee_categories[i] for i in trial_order]
-        else:  # 咖啡后
-            # 创建随机顺序，但保持图片和类别对应关系
+        else:
+            # 奇数被试的咖啡后 或 偶数被试的咖啡前：使用post_coffee图片
             trial_order = np.random.permutation(len(post_coffee_images))
             current_images = [post_coffee_images[i] for i in trial_order]
             current_categories = [post_coffee_categories[i] for i in trial_order]
 
-        print(f"Session {session}: Using {len(current_images)} images")
+        print(f"\nParticipant {participant_id} ({'Odd' if is_odd_participant else 'Even'})")
+        print(f"Session {session}: Using {'pre-coffee' if ((is_odd_participant and session == 1) or (not is_odd_participant and session == 2)) else 'post-coffee'} image set")
+        print("Number of images:", len(current_images))
         print("Categories distribution:", 
               {cat: current_categories.count(cat) for cat in set(current_categories)})
 
