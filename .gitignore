@@ -164,3 +164,5 @@ cython_debug/
 .vscode/settings.json
 .DS_Store
 *.png
+*_0_session*.csv
+*_1_session*.csv
