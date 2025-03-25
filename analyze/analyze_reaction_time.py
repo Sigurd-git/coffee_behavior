@@ -9,10 +9,18 @@ from utils.plot import (
     add_significance_markers,
 )
 import os
+import seaborn as sns
+from glob import glob
+from scipy import stats
 
 # Set font for displaying text
 plt.rcParams["font.sans-serif"] = ["Arial"]
 plt.rcParams["axes.unicode_minus"] = False
+
+# 设置中文字体和图表样式
+plt.rcParams["font.sans-serif"] = ["SimHei"]
+plt.rcParams["axes.unicode_minus"] = False
+sns.set_style("whitegrid")
 
 
 def extract_nback_rt(session_files):
@@ -189,6 +197,79 @@ def extract_emotion_rt(session_files):
     return pd.DataFrame(all_data)
 
 
+def extract_stroop_detailed_metrics(data_path="data"):
+    """
+    从Stroop实验数据中提取详细的反应时和正确率指标
+    
+    Parameters:
+    -----------
+    data_path : str
+        数据文件所在目录
+        
+    Returns:
+    --------
+    DataFrame : 包含被试ID、会话、条件、反应时和正确率的数据框
+    """
+    # 使用glob获取所有stroop统计文件
+    session1_files = glob(f"{data_path}/stroop_stats_*_session1.csv")
+    session2_files = glob(f"{data_path}/stroop_stats_*_session2.csv")
+    
+    all_data = []
+    
+    # 处理所有文件
+    for files, session in [(session1_files, 1), (session2_files, 2)]:
+        for file in files:
+            try:
+                df = pd.read_csv(file)
+                
+                # 只处理总体数据
+                total_data = df[df["level"] == "total"].iloc[0]
+                
+                # 提取被试ID
+                participant_id = total_data["participant_id"]
+                
+                # 添加总体指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "总体",
+                    "accuracy": total_data["正确率"],
+                    "rt": total_data["平均反应时"]
+                })
+                
+                # 添加一致条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "一致",
+                    "accuracy": total_data["一致条件正确率"],
+                    "rt": total_data["一致条件反应时"]
+                })
+                
+                # 添加不一致条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "不一致",
+                    "accuracy": total_data["不一致条件正确率"],
+                    "rt": total_data["不一致条件反应时"]
+                })
+                
+                # 添加中性词条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "中性",
+                    "accuracy": total_data["中性词正确率"],
+                    "rt": total_data["中性词反应时"]
+                })
+                
+            except Exception as e:
+                print(f"处理文件 {file} 时出错: {e}")
+    
+    return pd.DataFrame(all_data)
+
+
 def analyze_experiment_rt(config, exclude_participant=None, only_participant=None):
     """
     通用实验反应时分析主函数
@@ -362,6 +443,194 @@ def analyze_combined_experiments(
     return all_results
 
 
+def analyze_stroop_detailed():
+    """分析Stroop任务在不同条件下的反应时和正确率"""
+    
+    # 提取数据
+    df = extract_stroop_detailed_metrics()
+    
+    if df.empty:
+        print("未找到有效的Stroop任务数据")
+        return
+    
+    # 创建输出目录
+    os.makedirs("output", exist_ok=True)
+    
+    # 计算描述性统计
+    desc_stats = df.groupby(["session", "condition"]).agg({
+        "accuracy": ["mean", "std", "count"],
+        "rt": ["mean", "std", "count"]
+    }).round(2)
+    
+    print("\n描述性统计：")
+    print(desc_stats)
+    
+    # 找到两个session都有数据的被试
+    common_participants = set(df[df["session"] == 1]["participant_id"]) & set(df[df["session"] == 2]["participant_id"])
+    print(f"\n完成两个session的被试数量: {len(common_participants)}")
+    
+    # 进行配对t检验（按条件分组）
+    ttest_results = {}
+    
+    for condition in df["condition"].unique():
+        condition_data = df[df["condition"] == condition]
+        
+        # 准备配对数据
+        paired_data = []
+        
+        for pid in common_participants:
+            s1_data = condition_data[(condition_data["session"] == 1) & (condition_data["participant_id"] == pid)]
+            s2_data = condition_data[(condition_data["session"] == 2) & (condition_data["participant_id"] == pid)]
+            
+            if not s1_data.empty and not s2_data.empty:
+                paired_data.append({
+                    "participant_id": pid,
+                    "session1_acc": s1_data["accuracy"].iloc[0],
+                    "session2_acc": s2_data["accuracy"].iloc[0],
+                    "session1_rt": s1_data["rt"].iloc[0],
+                    "session2_rt": s2_data["rt"].iloc[0]
+                })
+        
+        if paired_data:
+            paired_df = pd.DataFrame(paired_data)
+            
+            # 正确率t检验
+            t_acc, p_acc = stats.ttest_rel(paired_df["session1_acc"], paired_df["session2_acc"])
+            
+            # 反应时t检验
+            t_rt, p_rt = stats.ttest_rel(paired_df["session1_rt"], paired_df["session2_rt"])
+            
+            ttest_results[condition] = {
+                "n_subjects": len(paired_df),
+                "accuracy": {
+                    "t_stat": t_acc,
+                    "p_val": p_acc,
+                    "session1_mean": paired_df["session1_acc"].mean(),
+                    "session2_mean": paired_df["session2_acc"].mean()
+                },
+                "rt": {
+                    "t_stat": t_rt,
+                    "p_val": p_rt,
+                    "session1_mean": paired_df["session1_rt"].mean(),
+                    "session2_mean": paired_df["session2_rt"].mean()
+                }
+            }
+    
+    # 打印统计检验结果
+    print("\n统计检验结果：")
+    for condition, result in ttest_results.items():
+        print(f"\n{condition}条件:")
+        print(f"完成两个session的被试数量: {result['n_subjects']}")
+        
+        print("正确率对比:")
+        print(f"t = {result['accuracy']['t_stat']:.3f}, p = {result['accuracy']['p_val']:.3f}")
+        print(f"咖啡前平均正确率: {result['accuracy']['session1_mean']:.2f}%")
+        print(f"咖啡后平均正确率: {result['accuracy']['session2_mean']:.2f}%")
+        
+        print("反应时对比:")
+        print(f"t = {result['rt']['t_stat']:.3f}, p = {result['rt']['p_val']:.3f}")
+        print(f"咖啡前平均反应时: {result['rt']['session1_mean']:.2f} ms")
+        print(f"咖啡后平均反应时: {result['rt']['session2_mean']:.2f} ms")
+    
+    # 绘制反应时对比图
+    plt.figure(figsize=(12, 6))
+    
+    # 准备绘图数据
+    plot_data = df.copy()
+    
+    # 将中文条件名转换为英文
+    condition_mapping = {
+        "总体": "Overall",
+        "一致": "Congruent",
+        "不一致": "Incongruent",
+        "中性": "Neutral"
+    }
+    plot_data["condition"] = plot_data["condition"].map(condition_mapping)
+    
+    # 将中文session名转换为英文
+    plot_data["session"] = plot_data["session"].map({1: "Pre-coffee", 2: "Post-coffee"})
+    
+    # 绘制反应时条形图
+    ax = sns.barplot(x="condition", y="rt", hue="session", data=plot_data, 
+                    palette=["lightblue", "lightgreen"], errorbar="se")
+    
+    # 添加标题和标签
+    plt.title("Stroop Task Reaction Time Comparison by Condition", fontsize=14)
+    plt.xlabel("Condition", fontsize=12)
+    plt.ylabel("Reaction Time (ms)", fontsize=12)
+    plt.legend(title="Experiment Stage")
+    
+    # 添加数值标签
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%.1f', fontsize=9)
+    
+    # 添加显著性标记
+    for i, condition in enumerate(plot_data["condition"].unique()):
+        orig_condition = [k for k, v in condition_mapping.items() if v == condition][0]
+        if orig_condition in ttest_results:
+            result = ttest_results[orig_condition]["rt"]
+            p_val = result["p_val"]
+            
+            # 计算显著性标记的高度
+            max_height = max(result["session1_mean"], result["session2_mean"]) * 1.1
+            
+            # 添加显著性标记
+            if p_val < 0.001:
+                plt.text(i, max_height, "***", ha='center', fontsize=12)
+            elif p_val < 0.01:
+                plt.text(i, max_height, "**", ha='center', fontsize=12)
+            elif p_val < 0.05:
+                plt.text(i, max_height, "*", ha='center', fontsize=12)
+            else:
+                plt.text(i, max_height, "ns", ha='center', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig("output/stroop_rt_conditions_comparison.png", dpi=300, bbox_inches="tight")
+    
+    # 绘制正确率对比图
+    plt.figure(figsize=(12, 6))
+    
+    # 绘制正确率条形图
+    ax = sns.barplot(x="condition", y="accuracy", hue="session", data=plot_data, 
+                    palette=["lightblue", "lightgreen"], errorbar="se")
+    
+    # 添加标题和标签
+    plt.title("Stroop Task Accuracy Comparison by Condition", fontsize=14)
+    plt.xlabel("Condition", fontsize=12)
+    plt.ylabel("Accuracy (%)", fontsize=12)
+    plt.legend(title="Experiment Stage")
+    
+    # 添加数值标签
+    for container in ax.containers:
+        ax.bar_label(container, fmt='%.1f', fontsize=9)
+    
+    # 添加显著性标记
+    for i, condition in enumerate(plot_data["condition"].unique()):
+        orig_condition = [k for k, v in condition_mapping.items() if v == condition][0]
+        if orig_condition in ttest_results:
+            result = ttest_results[orig_condition]["accuracy"]
+            p_val = result["p_val"]
+            
+            # 计算显著性标记的高度
+            max_height = max(result["session1_mean"], result["session2_mean"]) * 1.05
+            
+            # 添加显著性标记
+            if p_val < 0.001:
+                plt.text(i, max_height, "***", ha='center', fontsize=12)
+            elif p_val < 0.01:
+                plt.text(i, max_height, "**", ha='center', fontsize=12)
+            elif p_val < 0.05:
+                plt.text(i, max_height, "*", ha='center', fontsize=12)
+            else:
+                plt.text(i, max_height, "ns", ha='center', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig("output/stroop_accuracy_conditions_comparison.png", dpi=300, bbox_inches="tight")
+    
+    # 显示图表
+    plt.show()
+
+
 # 示例用法
 if __name__ == "__main__":
     print("Starting analysis of experimental data...")
@@ -486,3 +755,6 @@ if __name__ == "__main__":
     # )
 
     print("Analysis completed!")
+
+    # 分析Stroop任务在不同条件下的反应时和正确率
+    analyze_stroop_detailed()

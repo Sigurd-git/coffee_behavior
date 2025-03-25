@@ -176,16 +176,29 @@ def run_stroop(win, participant_id, session):
 
     # 在计算统计数据的部分修改
     def calculate_block_stats(block_df):
-        """计算单个block的统计数据"""
+        """Calculate statistics for a single block
+        Handles Chinese characters for color words: '红', '绿', '蓝', '白'
+        """
+        # Map color names to their Chinese equivalents
+        color_map = {
+            "Red": "红",
+            "Green": "绿",
+            "Blue": "蓝"
+        }
+        
+        # Convert English color names to Chinese in the dataframe
+        block_df = block_df.copy()
+        block_df["color_cn"] = block_df["color"].map(color_map)
+        
         return {
             "正确率": block_df["correct"].mean() * 100,
             "平均反应时": block_df["rt"].mean() * 1000,
-            "一致条件正确率": block_df[block_df["word"] == block_df["color"]]["correct"].mean() * 100,
-            "不一致条件正确率": block_df[block_df["word"] != block_df["color"]]["correct"].mean() * 100,
-            "中性词正确率": block_df[block_df["word"] == "白色"]["correct"].mean() * 100,
-            "一致条件反应时": block_df[block_df["word"] == block_df["color"]]["rt"].mean() * 1000,
-            "不一致条件反应时": block_df[block_df["word"] != block_df["color"]]["rt"].mean() * 1000,
-            "中性词反应时": block_df[block_df["word"] == "白色"]["rt"].mean() * 1000
+            "一致条件正确率": block_df[block_df["word"] == block_df["color_cn"]]["correct"].mean() * 100,
+            "不一致条件正确率": block_df[block_df["word"] != block_df["color_cn"]]["correct"].mean() * 100,
+            "中性词正确率": block_df[block_df["word"] == "白"]["correct"].mean() * 100,
+            "一致条件反应时": block_df[block_df["word"] == block_df["color_cn"]]["rt"].mean() * 1000,
+            "不一致条件反应时": block_df[block_df["word"] != block_df["color_cn"]]["rt"].mean() * 1000,
+            "中性词反应时": block_df[block_df["word"] == "白"]["rt"].mean() * 1000
         }
 
     # 计算每个block和总体的统计数据
