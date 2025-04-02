@@ -46,7 +46,7 @@ df[['n_back', 'y', 'dy_dt']] = scaler.fit_transform(df[['n_back', 'y', 'dy_dt']]
 
 # 准备交叉验证
 X = df[['n_back', 'b']].values  # 预测变量
-y = df['dy_dt'].values  # 目标变量
+y = df['y'].values  # 目标变量
 
 # 使用K折交叉验证
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -66,7 +66,7 @@ print("Model coefficients:", model_sk.coef_)
 print("Model intercept:", model_sk.intercept_)
 
 # 使用statsmodels进行详细分析（用于获取p值等）
-model = smf.ols('dy_dt ~ n_back + b', data=df).fit()
+model = smf.ols('y ~ n_back + b', data=df).fit()
 print(model.summary())
 
 # Create visualization of the results
@@ -169,29 +169,3 @@ plt.scatter(original_y, original_dy_dt, c=nback_task_data['session'], cmap='cool
 
 plt.tight_layout()
 plt.show()
-
-# 模型比较：测试不同模型结构
-print("\n模型比较：")
-
-# 模型1：只有n_back
-model1 = smf.ols('dy_dt ~ n_back', data=df).fit()
-print("Model 1 (n_back only) R²:", model1.rsquared)
-
-# 模型2：n_back + b
-model2 = smf.ols('dy_dt ~ n_back + b', data=df).fit()
-print("Model 2 (n_back + b) R²:", model2.rsquared)
-
-# 模型3：n_back + b + 交互项
-model3 = smf.ols('dy_dt ~ n_back + b + n_back:b', data=df).fit()
-print("Model 3 (with interaction) R²:", model3.rsquared)
-
-# 使用AIC和BIC比较模型
-print("\nAIC比较:")
-print("Model 1 AIC:", model1.aic)
-print("Model 2 AIC:", model2.aic)
-print("Model 3 AIC:", model3.aic)
-
-print("\nBIC比较:")
-print("Model 1 BIC:", model1.bic)
-print("Model 2 BIC:", model2.bic)
-print("Model 3 BIC:", model3.bic)

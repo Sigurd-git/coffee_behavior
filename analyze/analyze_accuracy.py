@@ -405,7 +405,7 @@ if __name__ == "__main__":
             "Experiment Group " + config["plot_config"]["title"]
         )
 
-    exp_results = analyze_combined_accuracy(config_list, exclude_participant=[0,1,2,3,4,5,6,7,8])
+    exp_results = analyze_combined_accuracy(config_list, exclude_participant=[0,1,2,3,4,5,6,7,8,30])
 
     # # 分析对照组数据（只有8号被试）
     # print("\n==== Analyzing control group data (only subject 8) ====")

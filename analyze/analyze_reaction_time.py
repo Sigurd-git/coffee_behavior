@@ -210,25 +210,25 @@ def extract_stroop_detailed_metrics(data_path="data"):
     --------
     DataFrame : 包含被试ID、会话、条件、反应时和正确率的数据框
     """
-    # 使用glob获取所有stroop统计文件
-    session1_files = glob(f"{data_path}/stroop_stats_*_session1.csv")
-    session2_files = glob(f"{data_path}/stroop_stats_*_session2.csv")
+    # Use glob to get all stroop stats files
+    session1_files = glob(f"{data_path}/stroop_*_session1_stats_new.csv")
+    session2_files = glob(f"{data_path}/stroop_*_session2_stats_new.csv")
     
     all_data = []
     
-    # 处理所有文件
+    # Process all files
     for files, session in [(session1_files, 1), (session2_files, 2)]:
         for file in files:
             try:
                 df = pd.read_csv(file)
                 
-                # 只处理总体数据
+                # Only process total data
                 total_data = df[df["level"] == "total"].iloc[0]
                 
-                # 提取被试ID
+                # Extract participant ID
                 participant_id = total_data["participant_id"]
                 
-                # 添加总体指标
+                # Add overall metrics
                 all_data.append({
                     "participant_id": participant_id,
                     "session": session,
@@ -237,7 +237,7 @@ def extract_stroop_detailed_metrics(data_path="data"):
                     "rt": total_data["平均反应时"]
                 })
                 
-                # 添加一致条件指标
+                # Add congruent condition metrics
                 all_data.append({
                     "participant_id": participant_id,
                     "session": session,
@@ -246,7 +246,7 @@ def extract_stroop_detailed_metrics(data_path="data"):
                     "rt": total_data["一致条件反应时"]
                 })
                 
-                # 添加不一致条件指标
+                # Add incongruent condition metrics
                 all_data.append({
                     "participant_id": participant_id,
                     "session": session,
@@ -255,7 +255,7 @@ def extract_stroop_detailed_metrics(data_path="data"):
                     "rt": total_data["不一致条件反应时"]
                 })
                 
-                # 添加中性词条件指标
+                # Add neutral condition metrics
                 all_data.append({
                     "participant_id": participant_id,
                     "session": session,
@@ -264,10 +264,67 @@ def extract_stroop_detailed_metrics(data_path="data"):
                     "rt": total_data["中性词反应时"]
                 })
                 
+                # Add incongruent-neutral difference
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "不一致-中性",
+                    "accuracy": total_data["不一致条件正确率"] - total_data["中性词正确率"],
+                    "rt": total_data["不一致条件反应时"] - total_data["中性词反应时"]
+                })
+                
+                # Add congruent-neutral difference 
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "一致-中性",
+                    "accuracy": total_data["一致条件正确率"] - total_data["中性词正确率"],
+                    "rt": total_data["一致条件反应时"] - total_data["中性词反应时"]
+                })
+                
             except Exception as e:
-                print(f"处理文件 {file} 时出错: {e}")
+                print(f"Error processing file {file}: {e}")
     
-    return pd.DataFrame(all_data)
+    # Create DataFrame
+    df = pd.DataFrame(all_data)
+    
+    # Create plots for interference effects
+    plt.figure(figsize=(12, 5))
+    
+    # Plot for incongruent-neutral difference
+    plt.subplot(1, 2, 1)
+    inc_neu_data = df[df["condition"] == "不一致-中性"]
+    sns.boxplot(x="session", y="rt", data=inc_neu_data)
+    plt.title("不一致-中性 干扰效应")
+    plt.xlabel("Session")
+    plt.ylabel("反应时差异 (ms)")
+    
+    # Perform t-test
+    s1_data = inc_neu_data[inc_neu_data["session"] == 1]["rt"]
+    s2_data = inc_neu_data[inc_neu_data["session"] == 2]["rt"]
+    t_stat, p_val = stats.ttest_rel(s1_data, s2_data)
+    if p_val < 0.05:
+        plt.text(0.5, plt.ylim()[1], "*", ha="center", va="bottom", fontsize=14)
+    
+    # Plot for congruent-neutral difference
+    plt.subplot(1, 2, 2)
+    con_neu_data = df[df["condition"] == "一致-中性"]
+    sns.boxplot(x="session", y="rt", data=con_neu_data)
+    plt.title("一致-中性 干扰效应")
+    plt.xlabel("Session")
+    plt.ylabel("反应时差异 (ms)")
+    
+    # Perform t-test
+    s1_data = con_neu_data[con_neu_data["session"] == 1]["rt"]
+    s2_data = con_neu_data[con_neu_data["session"] == 2]["rt"]
+    t_stat, p_val = stats.ttest_rel(s1_data, s2_data)
+    if p_val < 0.05:
+        plt.text(0.5, plt.ylim()[1], "*", ha="center", va="bottom", fontsize=14)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return df
 
 
 def analyze_experiment_rt(config, exclude_participant=None, only_participant=None):

@@ -80,7 +80,7 @@ def recalculate_stroop_stats(raw_data_path):
 # 处理数据
 # Process all stroop data files from participant 0 to 27, sessions 1 and 2
 all_stats = []
-for participant in range(29):  # 0 to 27
+for participant in range(31):  # 0 to 30
     for session in [1, 2]:
         filename = f'data/stroop_{participant}_session{session}.csv'
         try:

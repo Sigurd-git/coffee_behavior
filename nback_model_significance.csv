@@ -1,4 +1,4 @@
 Parameter,Pre-coffee Coef,Post-coffee Coef,Difference
-Intercept,96.4744 ***,98.1333 ***,1.6590
-n_back,-1.5064 ns,0.2000 ns,1.7064
-n_back_squared,-2.4679 *,-3.0667 **,-0.5987
+Intercept,96.4198 ***,98.1410 ***,1.7213
+n_back,-1.5741 ns,0.2564 ns,1.8305
+n_back_squared,-2.3765 *,-3.0769 **,-0.7004
