@@ -166,3 +166,4 @@ cython_debug/
 *.png
 *_0_session*.csv
 *_1_session*.csv
+*.zip
