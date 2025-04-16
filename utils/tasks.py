@@ -117,7 +117,40 @@ def extract_stroop(experiment_config):
             "rt": "mean",
         }
     )
+    result_df["ies"] = result_df["rt"] / result_df["correct"]
+    pivot_ies = result_df.pivot_table(
+        index=["participant_id", "session"],
+        columns="condition",
+        values="ies",
+        aggfunc="mean",
+    ).reset_index()
 
+    interference_ies = pd.DataFrame(
+        {
+            "participant_id": pivot_ies["participant_id"],
+            "session": pivot_ies["session"],
+            "condition": "Inconsistent-Consistent",
+            "ies": pivot_ies["Inconsistent"] - pivot_ies["Consistent"],
+        }
+    )
+
+    incongruent_neutral_ies = pd.DataFrame(
+        {
+            "participant_id": pivot_ies["participant_id"],
+            "session": pivot_ies["session"],
+            "condition": "Inconsistent-Neutral",
+            "ies": pivot_ies["Inconsistent"] - pivot_ies["Neutral"],
+        }
+    )
+
+    neutral_congruent_ies = pd.DataFrame(
+        {
+            "participant_id": pivot_ies["participant_id"],
+            "session": pivot_ies["session"],
+            "condition": "Neutral-Consistent",
+            "ies": pivot_ies["Neutral"] - pivot_ies["Consistent"],
+        }
+    )
     # Calculate interference effects for each participant and session
     # First, pivot the data to have conditions as columns for easier calculation
     pivot_acc = combined_data.pivot_table(
@@ -194,16 +227,31 @@ def extract_stroop(experiment_config):
     interference_effects = pd.merge(
         interference_acc, interference_rt, on=["participant_id", "session", "condition"]
     )
+    interference_effects = pd.merge(
+        interference_effects,
+        interference_ies,
+        on=["participant_id", "session", "condition"],
+    )
 
     incongruent_neutral_effects = pd.merge(
         incongruent_neutral_acc,
         incongruent_neutral_rt,
         on=["participant_id", "session", "condition"],
     )
+    incongruent_neutral_effects = pd.merge(
+        incongruent_neutral_effects,
+        incongruent_neutral_ies,
+        on=["participant_id", "session", "condition"],
+    )
 
     neutral_congruent_effects = pd.merge(
         neutral_congruent_acc,
         neutral_congruent_rt,
+        on=["participant_id", "session", "condition"],
+    )
+    neutral_congruent_effects = pd.merge(
+        neutral_congruent_effects,
+        neutral_congruent_ies,
         on=["participant_id", "session", "condition"],
     )
 

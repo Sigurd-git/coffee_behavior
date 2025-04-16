@@ -5,11 +5,10 @@ import os
 from utils.plot import plot_bar_comparison
 from utils.tasks import extract_stroop
 from statannotations.Annotator import Annotator
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
 
-
-def analyze_experiment_accuracy(
-    experiment_config, exclude_participant=None, only_participant=None
-):
+def analyze_ies(experiment_config, exclude_participant=None, only_participant=None):
     """
     通用实验正确率分析主函数
 
@@ -41,14 +40,10 @@ def analyze_experiment_accuracy(
             df = df[df["participant_id"].isin(only_participant)]
         else:
             df = df[df["participant_id"] == only_participant]
-
-    # 如果过滤后没有数据，则跳过当前实验
-    if df.empty:
-        print(
-            f"Experiment {experiment_config['experiment_type']} has no valid data after filtering"
-        )
-        return results
-
+    print("\n==== ANOVA IES ====")
+    model = ols("ies ~ condition * session * group", data=df).fit()
+    anova_table = sm.stats.anova_lm(model, typ=2)
+    print(anova_table)
     # 6. 可视化
     if experiment_config.get("plot", True):
         plot_config = experiment_config.get("plot_config", {})
@@ -131,63 +126,20 @@ def analyze_experiment_accuracy(
     return results
 
 
-def analyze_combined_accuracy(
-    experiments_config, exclude_participant=None, only_participant=None
-):
-    """
-    分析多个实验的正确率并进行对比
-
-    Parameters:
-    -----------
-    experiments_config : list
-        实验配置列表，每个元素为一个实验配置字典
-    exclude_participant : int or list
-        要排除的被试ID，如果为None则不排除任何被试
-    only_participant : int or list
-        只分析特定被试ID，如果为None则分析所有被试
-    """
-
-    # 处理所有实验
-    all_results = {}
-
-    for config in experiments_config:
-        # 4. 分析实验
-        results = analyze_experiment_accuracy(
-            config, exclude_participant, only_participant
-        )
-        all_results[config["experiment_type"]] = results
-
-    return all_results
-
-
 # 示例用法
 if __name__ == "__main__":
-    # N-back实验配置
-    nback_acc_config = {
-        "experiment_type": "nback",
-        "extract_function": extract_nback,
-        "plot_config": {
-            "x_var": "condition",
-            "row_var": "group",
-            "title": "N-back Task Accuracy Comparison",
-            "xlabel": "Condition",
-            "ylabel": "Accuracy (%)",
-            "output_file": "nback_accuracy_comparison.png",
-        },
-        "output_dir": "output",
-    }
-
     # Stroop实验配置
     stroop_acc_config = {
         "experiment_type": "stroop",
         "extract_function": extract_stroop,
         "plot_config": {
             "x_var": "condition",
+            "y_var": "ies",
             "row_var": "group",
-            "title": "Stroop Task Accuracy Comparison",
+            "title": "Stroop Task IES Comparison",
             "xlabel": "Session",
-            "ylabel": "Accuracy (%)",
-            "output_file": "stroop_accuracy_comparison.png",
+            "ylabel": "IES",
+            "output_file": "stroop_ies_comparison.png",
         },
         "output_dir": "output",
     }
@@ -195,37 +147,10 @@ if __name__ == "__main__":
     # 创建输出目录
     os.makedirs("output", exist_ok=True)
 
-    # 分析实验组数据（不包括8号被试）
-    print("==== Analyzing experimental group data (excluding subject 8) ====")
-    config_list = [
-        nback_acc_config,
+    results = analyze_ies(
         stroop_acc_config,
-    ]
-
-    exp_results = analyze_combined_accuracy(
-        config_list, exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25]
+        exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25],
     )
-
-    # # 分析对照组数据（只有8号被试）
-    # print("\n==== Analyzing control group data (only subject 8) ====")
-    # control_config_list = []
-    # for config in config_list:
-    #     # 创建新配置，避免修改原始配置
-    #     control_config = config.copy()
-    #     control_config["plot_config"] = config["plot_config"].copy()
-
-    #     # 更新输出文件名，加上control前缀
-    #     output_file = config["plot_config"]["output_file"]
-    #     control_config["plot_config"]["output_file"] = output_file.replace(
-    #         "_exp.png", "_control.png"
-    #     )
-    #     control_config["plot_config"]["title"] = output_file.replace(
-    #         "Experiment Group", "Control Group"
-    #     )
-
-    #     control_config_list.append(control_config)
-
-    # control_results = analyze_combined_accuracy(control_config_list, only_participant=8)
 
     print(
         "\nStarting analysis of individual experiment accuracy for experimental group..."
