@@ -3,143 +3,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from utils.plot import (
-    load_data,
     plot_bar_comparison,
     paired_t_test,
     add_significance_markers,
 )
-
-
-# 提取n-back任务的正确率
-def extract_nback_accuracy(session_files):
-    """
-    从N-back实验数据中提取正确率指标
-
-    Parameters:
-    -----------
-    session_files : dict
-        包含各会话数据文件的字典
-
-    Returns:
-    --------
-    DataFrame : 包含被试ID、会话、条件和正确率的数据框
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "accuracy": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-            # 只选择正确的试次和目标试次
-            target_trials = df[df["target"]]
-            # 计算每个n-back水平的正确率
-            for n_back in df["n_back"].unique():
-                n_back_trials = target_trials[target_trials["n_back"] == n_back]
-                correct_trials = n_back_trials[n_back_trials["correct"]]
-                accuracy = len(correct_trials) / len(n_back_trials) * 100
-
-                all_data["task"].append("n-back")
-                all_data["participant_id"].append(df["participant_id"].iloc[0])
-                all_data["session"].append(session)
-                all_data["condition"].append(int(n_back))
-                all_data["accuracy"].append(accuracy)
-
-    return pd.DataFrame(all_data)
-
-
-# 提取Stroop任务的正确率
-def extract_stroop_accuracy(session_files):
-    """
-    从Stroop实验数据中提取正确率指标
-
-    Parameters:
-    -----------
-    session_files : dict
-        包含各会话数据文件的字典
-
-    Returns:
-    --------
-    DataFrame : 包含被试ID、会话、条件和正确率的数据框
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "accuracy": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-
-            # 对于Stroop任务，从统计文件中获取总体指标
-            total_data = df[df["level"] == "total"].iloc[0]
-            all_data["task"].append("stroop")
-            all_data["participant_id"].append(total_data["participant_id"])
-            all_data["session"].append(session)
-            all_data["condition"].append("total")
-            all_data["accuracy"].append(total_data["正确率"])
-
-    return pd.DataFrame(all_data)
-
-
-# 提取BART任务的准确率
-def extract_bart_accuracy(session_files):
-    """
-    Extract accuracy metrics from BART experiment data.
-    For BART, accuracy is defined as (1 - proportion of exploded balloons) * 100%
-
-    Parameters:
-    -----------
-    session_files : dict
-        Dictionary containing session data files
-
-    Returns:
-    --------
-    DataFrame : DataFrame containing participant ID, session, condition and accuracy
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "explosion_rate": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-            # remove rows with any NA values
-            df = df[df["exploded"].notna()]
-            # Count total trials and exploded trials
-            total_trials = len(df)
-            exploded_trials = len(df[df["exploded"]])
-
-            # Calculate accuracy as 1 - explosion rate
-            if total_trials > 0:
-                explosion_rate = (exploded_trials / total_trials) * 100
-
-                # Extract participant ID from filename
-                file_name = os.path.basename(file)
-                participant_id = int(file_name.split("_")[1])
-
-                all_data["task"].append("BART")
-                all_data["participant_id"].append(participant_id)
-                all_data["session"].append(session)
-                all_data["condition"].append("overall")
-                all_data["explosion_rate"].append(explosion_rate)
-
-                print(
-                    f"Processed BART explosion rate for file: {file}, explosion rate: {explosion_rate:.2f}%"
-                )
-
-    return pd.DataFrame(all_data)
+from utils.tasks import (
+    extract_nback,
+    extract_stroop,
+    extract_bart,
+)
 
 
 def analyze_experiment_accuracy(
@@ -159,16 +31,9 @@ def analyze_experiment_accuracy(
     """
     results = {}
 
-    # 1. 加载数据
-    session_files = load_data(
-        experiment_config["experiment_type"],
-        experiment_config.get("data_path", "data"),
-        experiment_config.get("file_patterns", None),
-    )
-
     # 2. 提取数据
     extract_func = experiment_config["extract_function"]
-    df = extract_func(session_files)
+    df = extract_func(experiment_config)
 
     # 3. 如有需要，根据被试ID过滤数据
     if exclude_participant is not None:
@@ -211,8 +76,9 @@ def analyze_experiment_accuracy(
         condition_key = str(condition) if condition is not None else "overall"
         # 重用common_analysis中的paired_t_test函数，但用于accuracy变量
         test_df = df.copy()
-        test_df["mean_rt"] = test_df[y_var]  # 临时重命名以适应paired_t_test函数
-        ttest_results[condition_key] = paired_t_test(test_df, condition_var, condition)
+        ttest_results[condition_key] = paired_t_test(
+            test_df, condition_var, condition, y_var
+        )
 
     results["ttest_results"] = ttest_results
 
@@ -334,12 +200,8 @@ if __name__ == "__main__":
     # N-back实验配置
     nback_acc_config = {
         "experiment_type": "nback",
-        "extract_function": extract_nback_accuracy,
-        "file_patterns": {
-            1: "nback_[0-9]*_session1.csv",
-            2: "nback_[0-9]*_session2.csv",
-        },
-        "conditions": [0, 1, 2],  # 不同的n-back水平
+        "extract_function": extract_nback,
+        "conditions": ["0-back", "1-back", "2-back"],  # 不同的n-back水平
         "condition_var": "condition",
         "plot_config": {
             "x_var": "condition",
@@ -354,11 +216,7 @@ if __name__ == "__main__":
     # Stroop实验配置
     stroop_acc_config = {
         "experiment_type": "stroop",
-        "extract_function": extract_stroop_accuracy,
-        "file_patterns": {
-            1: "stroop_stats_[0-9]*_session1.csv",
-            2: "stroop_stats_[0-9]*_session2.csv",
-        },
+        "extract_function": extract_stroop,
         "conditions": ["total"],
         "plot_config": {
             "x_var": "condition",
@@ -373,11 +231,7 @@ if __name__ == "__main__":
     # BART实验配置
     bart_acc_config = {
         "experiment_type": "bart",
-        "extract_function": extract_bart_accuracy,
-        "file_patterns": {
-            1: "bart_[0-9]*_session1.csv",
-            2: "bart_[0-9]*_session2.csv",
-        },
+        "extract_function": extract_bart,
         "conditions": ["overall"],  # BART只有一个总体条件
         "plot_config": {
             "x_var": "condition",
@@ -395,7 +249,11 @@ if __name__ == "__main__":
 
     # 分析实验组数据（不包括8号被试）
     print("==== Analyzing experimental group data (excluding subject 8) ====")
-    config_list = [nback_acc_config, stroop_acc_config, bart_acc_config]
+    config_list = [
+        # nback_acc_config,
+        # stroop_acc_config,
+        bart_acc_config,
+    ]
     for config in config_list:
         # 更新输出文件名，加上exp前缀
         config["plot_config"]["output_file"] = config["plot_config"][
@@ -405,7 +263,10 @@ if __name__ == "__main__":
             "Experiment Group " + config["plot_config"]["title"]
         )
 
-    exp_results = analyze_combined_accuracy(config_list, exclude_participant=[0,1,2,3,4,5,6,7,8,30])
+    # exp_results = analyze_combined_accuracy(
+    #     config_list, exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8, 30]
+    # )
+    exp_results = analyze_combined_accuracy(config_list, exclude_participant=[0, 1, 8])
 
     # # 分析对照组数据（只有8号被试）
     # print("\n==== Analyzing control group data (only subject 8) ====")

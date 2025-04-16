@@ -221,93 +221,130 @@ def analyze_emotion_ratings():
 
     # generate a barplot to compare between regulation and negative
     # 筛选出regulation和negative的数据
-    # df = exp_df[exp_df["emotion_type"].isin(["regulation", "negative"])]
-    df = exp_df
+    df = exp_df[exp_df["emotion_type"].isin(["regulation", "negative"])]
 
-    # Create a function to generate comparison plots for each measure (valence and arousal)
-    def create_comparison_plot(data, measure, session_num, output_dir):
-        """
-        Create comparison plots between regulation and negative conditions for a specific measure
+    # Create plots comparing regulation and negative across both sessions
+    # Valence comparison with significance markers
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(
+        x="emotion_type",
+        y="valence",
+        hue="session",
+        data=df,
+        estimator=np.mean,
+        ci=68,
+        palette="Set1",
+    )
 
-        Args:
-            data: DataFrame containing the session data
-            measure: The measure to plot (valence or arousal)
-            session_num: The session number
-            output_dir: Directory to save output files
-        """
-        plt.figure(figsize=(8, 5))
-        ax = sns.barplot(
-            x="emotion_type",
-            y=measure,
-            hue="session",
-            data=data,
-            estimator=np.mean,
-            ci=68,
-            palette=["lightblue", "lightgreen"],
+    # Perform paired t-tests for valence between emotion types within each session
+    for session_num in [1, 2]:
+        session_df = df[df["session"] == session_num]
+        valence_reg = session_df[session_df["emotion_type"] == "regulation"]["valence"]
+        valence_neg = session_df[session_df["emotion_type"] == "negative"]["valence"]
+        t_val, p_val = stats.ttest_rel(valence_reg, valence_neg)
+        print(
+            f"Session {session_num} - Paired t-test for valence (regulation vs negative): t={t_val:.3f}, p={p_val:.3f}"
         )
 
-        # Perform statistical tests for each emotion type between sessions
-        for i, emotion_type in enumerate(data["emotion_type"].unique()):
-            emotion_data = data[data["emotion_type"] == emotion_type]
-            session1_data = emotion_data[emotion_data["session"] == 1][measure]
-            session2_data = emotion_data[emotion_data["session"] == 2][measure]
+        # Add significance markers for emotion type comparison within session
+        max_height = session_df.groupby("emotion_type")["valence"].mean().max() * 1.1
+        # Adjust x positions based on bar positions for each session
+        x_positions = [
+            0 + (0.25 if session_num == 2 else -0.25),
+            1 + (0.25 if session_num == 2 else -0.25),
+        ]
+        add_significance_markers(ax, x_positions, p_val, max_height)
 
-            # Only perform test if we have data for both sessions
-            if len(session1_data) > 0 and len(session2_data) > 0:
-                # Find participants who completed both sessions
-                participants_s1 = set(
-                    emotion_data[emotion_data["session"] == 1]["participant_id"]
-                )
-                participants_s2 = set(
-                    emotion_data[emotion_data["session"] == 2]["participant_id"]
-                )
-                common_participants = participants_s1 & participants_s2
-
-                if len(common_participants) > 1:
-                    # Filter data for common participants
-                    s1_vals = emotion_data[
-                        (emotion_data["session"] == 1)
-                        & (emotion_data["participant_id"].isin(common_participants))
-                    ][measure]
-                    s2_vals = emotion_data[
-                        (emotion_data["session"] == 2)
-                        & (emotion_data["participant_id"].isin(common_participants))
-                    ][measure]
-
-                    # Perform paired t-test
-                    t_val, p_val = stats.ttest_rel(s1_vals, s2_vals)
-                    print(
-                        f"{emotion_type} - Session comparison for {measure}: t={t_val:.3f}, p={p_val:.3f}, n={len(common_participants)}"
-                    )
-
-                    # Add significance markers
-                    max_height = (
-                        emotion_data.groupby("session")[measure].mean().max() * 1.1
-                    )
-                    x_positions = [i - 0.2, i + 0.2]  # Adjust for hue positions
-                    add_significance_markers(ax, x_positions, p_val, max_height)
-
-        plt.title(
-            f"Session {session_num} - {measure.capitalize()} Comparison by Emotion Type"
+    # Perform paired t-tests for valence between sessions for each emotion type
+    for emotion_type in ["regulation", "negative"]:
+        emotion_df = df[df["emotion_type"] == emotion_type]
+        valence_s1 = emotion_df[emotion_df["session"] == 1]["valence"]
+        valence_s2 = emotion_df[emotion_df["session"] == 2]["valence"]
+        t_val, p_val = stats.ttest_rel(valence_s1, valence_s2)
+        print(
+            f"{emotion_type} - Paired t-test for valence (session 1 vs session 2): t={t_val:.3f}, p={p_val:.3f}"
         )
-        plt.xlabel("Emotion Type")
-        plt.ylabel(f"{measure.capitalize()} Rating")
-        plt.legend(title="Session")
-        plt.tight_layout()
-        plt.savefig(
-            os.path.join(
-                output_dir,
-                f"emotion_{measure}_comparison_session{session_num}.png",
-            ),
-            dpi=300,
+
+        # Add significance markers for session comparison within emotion type
+        max_height = emotion_df.groupby("session")["valence"].mean().max() * 1.15
+        # Position markers above the bars for each emotion type
+        x_position = 0 if emotion_type == "regulation" else 1
+        add_significance_markers(
+            ax, [x_position, x_position], p_val, max_height, width=0.5
         )
-        plt.close()
 
-    # Generate comparison plots for valence
-    create_comparison_plot(df, "valence", 1, output_dir)
+    plt.title("Valence Comparison: Regulation vs Negative Across Sessions")
+    plt.legend(title="Session")
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(
+            output_dir,
+            "emotion_regulation_negative_valence_comparison.png",
+        ),
+        dpi=300,
+    )
+    plt.close()
 
-    # Generate comparison plots for arousal
-    create_comparison_plot(df, "arousal", 1, output_dir)
+    # Arousal comparison with significance markers
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(
+        x="emotion_type",
+        y="arousal",
+        hue="session",
+        data=df,
+        estimator=np.mean,
+        ci=68,
+        palette="Set1",
+    )
+
+    # Perform paired t-tests for arousal between emotion types within each session
+    for session_num in [1, 2]:
+        session_df = df[df["session"] == session_num]
+        arousal_reg = session_df[session_df["emotion_type"] == "regulation"]["arousal"]
+        arousal_neg = session_df[session_df["emotion_type"] == "negative"]["arousal"]
+        t_val, p_val = stats.ttest_rel(arousal_reg, arousal_neg)
+        print(
+            f"Session {session_num} - Paired t-test for arousal (regulation vs negative): t={t_val:.3f}, p={p_val:.3f}"
+        )
+
+        # Add significance markers for emotion type comparison within session
+        max_height = session_df.groupby("emotion_type")["arousal"].mean().max() * 1.1
+        # Adjust x positions based on bar positions for each session
+        x_positions = [
+            0 + (0.25 if session_num == 2 else -0.25),
+            1 + (0.25 if session_num == 2 else -0.25),
+        ]
+        add_significance_markers(ax, x_positions, p_val, max_height)
+
+    # Perform paired t-tests for arousal between sessions for each emotion type
+    for emotion_type in ["regulation", "negative"]:
+        emotion_df = df[df["emotion_type"] == emotion_type]
+        arousal_s1 = emotion_df[emotion_df["session"] == 1]["arousal"]
+        arousal_s2 = emotion_df[emotion_df["session"] == 2]["arousal"]
+        t_val, p_val = stats.ttest_rel(arousal_s1, arousal_s2)
+        print(
+            f"{emotion_type} - Paired t-test for arousal (session 1 vs session 2): t={t_val:.3f}, p={p_val:.3f}"
+        )
+
+        # Add significance markers for session comparison within emotion type
+        max_height = emotion_df.groupby("session")["arousal"].mean().max() * 1.15
+        # Position markers above the bars for each emotion type
+        x_position = 0 if emotion_type == "regulation" else 1
+        add_significance_markers(
+            ax, [x_position, x_position], p_val, max_height, width=0.5
+        )
+
+    plt.title("Arousal Comparison: Regulation vs Negative Across Sessions")
+    plt.legend(title="Session")
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(
+            output_dir,
+            "emotion_regulation_negative_arousal_comparison.png",
+        ),
+        dpi=300,
+    )
+    plt.close()
 
     # print("\n==== Analyzing experimental group data (excluding subject 8) ====")
     analyze_group_data(exp_df, output_dir, "exp")

@@ -6,85 +6,7 @@ from glob import glob
 import os
 from scipy import stats
 from utils.plot import add_significance_markers
-
-
-def load_bart_data(data_path="data"):
-    """
-    Load BART experiment data files
-
-    Parameters:
-    -----------
-    data_path : str
-        Path to data directory
-
-    Returns:
-    --------
-    dict : Dictionary containing session data files
-    """
-    session_files = {
-        1: glob(os.path.join(data_path, "bart_[0-9]*_session1.csv")),
-        2: glob(os.path.join(data_path, "bart_[0-9]*_session2.csv")),
-    }
-
-    print(f"Found {len(session_files[1])} files for session 1")
-    print(f"Found {len(session_files[2])} files for session 2")
-
-    return session_files
-
-
-def extract_bart_earnings(session_files):
-    """
-    Extract earnings data from BART experiment
-
-    Parameters:
-    -----------
-    session_files : dict
-        Dictionary containing session data files
-
-    Returns:
-    --------
-    DataFrame : DataFrame containing participant ID, session, and earnings data
-    """
-    all_data = {
-        "participant_id": [],
-        "session": [],
-        "total_earned": [],
-        "mean_earned_per_balloon": [],
-        "mean_earned_per_unexploded": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-            df = df[df["exploded"].notna()]
-            # Extract participant ID from filename
-            file_name = os.path.basename(file)
-            participant_id = int(file_name.split("_")[1])
-
-            # Calculate earnings metrics
-            total_earned = df["earned"].sum()
-            unexploded_trials = df[df["exploded"] == False]
-
-            # Calculate mean earnings per balloon (all trials)
-            mean_earned_per_balloon = total_earned / len(df[df["balloon"].notna()])
-
-            # Calculate mean earnings per unexploded balloon
-            mean_earned_per_unexploded = 0
-            if len(unexploded_trials) > 0:
-                mean_earned_per_unexploded = unexploded_trials["earned"].mean()
-
-            # Add data to results
-            all_data["participant_id"].append(participant_id)
-            all_data["session"].append(session)
-            all_data["total_earned"].append(total_earned)
-            all_data["mean_earned_per_balloon"].append(mean_earned_per_balloon)
-            all_data["mean_earned_per_unexploded"].append(mean_earned_per_unexploded)
-
-            print(
-                f"Processed BART earnings for participant {participant_id}, session {session}"
-            )
-
-    return pd.DataFrame(all_data)
+from utils.tasks import extract_bart
 
 
 def paired_t_test(df, measure):
@@ -172,7 +94,7 @@ def plot_bart_earnings(df, measure, title, ylabel, output_file=None):
 
     # Create bar plot
     ax = sns.barplot(
-        x=1,
+        x="condition",
         hue="session",
         y=measure,
         data=df,
@@ -183,7 +105,7 @@ def plot_bart_earnings(df, measure, title, ylabel, output_file=None):
 
     # Set labels and title
     plt.title(title)
-    plt.xlabel("Experiment Phase")
+    plt.xlabel("Session")
     plt.ylabel(ylabel)
 
     # Perform t-test
@@ -213,19 +135,21 @@ def analyze_bart_earnings():
     # Create output directory
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
-
-    # Load data
-    session_files = load_bart_data()
+    bart_acc_config = {
+        "experiment_type": "bart",
+        "extract_function": extract_bart,
+        "conditions": ["overall"],  # BART只有一个总体条件
+    }
 
     # Extract earnings data
-    earnings_df = extract_bart_earnings(session_files)
+    earnings_df = extract_bart(bart_acc_config)
 
     if earnings_df.empty:
         print("No valid BART data found")
         return
 
     # 将数据分为实验组（除8号外）和对照组（8号）
-    exp_df = earnings_df[earnings_df["participant_id"] > 8]
+    exp_df = earnings_df[~earnings_df["participant_id"].isin([0, 1, 8])]
     # control_df = earnings_df[earnings_df["participant_id"] == 8]
 
     print("\n==== Analyzing experimental group data (excluding subject 8) ====")
@@ -257,7 +181,7 @@ def analyze_group_earnings(df, output_dir, group_name):
     print(f"This group contains {participant_count} participants")
 
     # Perform t-tests
-    measures = ["total_earned", "mean_earned_per_balloon", "mean_earned_per_unexploded"]
+    measures = ["total_earned", "mean_earned_per_unexploded"]
 
     print("\nStatistical Test Results:")
     for measure in measures:
@@ -285,12 +209,12 @@ def analyze_group_earnings(df, output_dir, group_name):
             "measure": "total_earned",
             "output_file": f"bart_{group_name}_total_earnings.png",
         },
-        {
-            "title": f"{group_name.upper()} Group BART Task Mean Earnings Per Balloon",
-            "ylabel": "Mean Earnings Per Balloon",
-            "measure": "mean_earned_per_balloon",
-            "output_file": f"bart_{group_name}_mean_per_balloon.png",
-        },
+        # {
+        #     "title": f"{group_name.upper()} Group BART Task Mean Earnings Per Balloon",
+        #     "ylabel": "Mean Earnings Per Balloon",
+        #     "measure": "mean_earned_per_balloon",
+        #     "output_file": f"bart_{group_name}_mean_per_balloon.png",
+        # },
     ]
 
     for config in plot_configs:

@@ -20,7 +20,11 @@ def run_stroop(win, participant_id, session):
         "stim_duration": 0.5,  # 刺激呈现时间
         "isi": 1.0,  # 刺激间隔时间
         "num_practice_stimuli": 2,  # 练习试次数量
-        "colors": {"Red": [1, -1, -1], "Green": [-1, 1, -1], "Blue": [-1, -1, 1]},  # 颜色RGB值
+        "colors": {
+            "Red": [1, -1, -1],
+            "Green": [-1, 1, -1],
+            "Blue": [-1, -1, 1],
+        },  # 颜色RGB值
         "words": ["红", "绿", "蓝"],  # 文字刺激
         "neutral_word": "白",  # 中性词
     }
@@ -70,10 +74,10 @@ def run_stroop(win, participant_id, session):
     # 初始化数据记录
     data = {
         "trial": [],  # 试次编号
-        "word": [],   # 呈现的文字
+        "word": [],  # 呈现的文字
         "color": [],  # 呈现的颜色
         "response": [],  # 被试反应
-        "rt": [],     # 反应时
+        "rt": [],  # 反应时
         "correct": [],  # 是否正确
     }
 
@@ -86,11 +90,13 @@ def run_stroop(win, participant_id, session):
             "response": [],
             "rt": [],
             "correct": [],
-            "block": []
+            "block": [],
         }
 
         # 所有可能的词（包括中性词"白色"）
-        all_words = params["words"] + [params["neutral_word"]]  # ["红色", "绿色", "蓝色", "白色"]
+        all_words = params["words"] + [
+            params["neutral_word"]
+        ]  # ["红色", "绿色", "蓝色", "白色"]
         all_colors = list(params["colors"].keys())  # ["Red", "Green", "Blue"]
 
         # 运行试次
@@ -139,7 +145,7 @@ def run_stroop(win, participant_id, session):
 
             win.flip()
             core.wait(params["isi"])
-        
+
         return block_data
 
     # 运行练习试次
@@ -174,82 +180,6 @@ def run_stroop(win, participant_id, session):
     # 合并所有block的数据
     df = pd.concat(all_data, ignore_index=True)
 
-    # 在计算统计数据的部分修改
-    def calculate_block_stats(block_df):
-        """Calculate statistics for a single block
-        Handles Chinese characters for color words: '红', '绿', '蓝', '白'
-        """
-        # Map color names to their Chinese equivalents
-        color_map = {
-            "Red": "红",
-            "Green": "绿",
-            "Blue": "蓝"
-        }
-        
-        # Convert English color names to Chinese in the dataframe
-        block_df = block_df.copy()
-        block_df["color_cn"] = block_df["color"].map(color_map)
-        
-        return {
-            "正确率": block_df["correct"].mean() * 100,
-            "平均反应时": block_df["rt"].mean() * 1000,
-            "一致条件正确率": block_df[block_df["word"] == block_df["color_cn"]]["correct"].mean() * 100,
-            "不一致条件正确率": block_df[block_df["word"] != block_df["color_cn"]]["correct"].mean() * 100,
-            "中性词正确率": block_df[block_df["word"] == "白"]["correct"].mean() * 100,
-            "一致条件反应时": block_df[block_df["word"] == block_df["color_cn"]]["rt"].mean() * 1000,
-            "不一致条件反应时": block_df[block_df["word"] != block_df["color_cn"]]["rt"].mean() * 1000,
-            "中性词反应时": block_df[block_df["word"] == "白"]["rt"].mean() * 1000
-        }
-
-    # 计算每个block和总体的统计数据
-    stats = []
-
-    # 计算每个block的统计
-    for block in range(params["num_trials"]):
-        block_df = df[df["block"] == block]
-        block_stats = calculate_block_stats(block_df)
-        stats.append({
-            "level": "block",
-            "block": block + 1,
-            **block_stats,
-            "participant_id": participant_id,
-            "session": session
-        })
-
-    # 计算总体统计
-    total_stats = calculate_block_stats(df)
-    stats.append({
-        "level": "total",
-        "block": "all",
-        **total_stats,
-        "participant_id": participant_id,
-        "session": session
-    })
-
-    # 创建统计数据DataFrame
-    stats_df = pd.DataFrame(stats)
-
     # 保存原始数据和统计数据
     raw_filename = f"data/stroop_{participant_id}_session{session}.csv"
     save_data(df, raw_filename)
-
-    stats_filename = f"data/stroop_stats_{participant_id}_session{session}.csv"
-    save_data(stats_df, stats_filename)
-
-    # 打印统计结果
-    print("\n任务总结:")
-    print("\n每个Block的统计:")
-    block_stats = stats_df[stats_df["level"] == "block"]
-    for _, row in block_stats.iterrows():
-        print(f"\nBlock {row['block']}:")
-        for key in ["正确率", "平均反应时", 
-                    "一致条件正确率", "不一致条件正确率", "中性词正确率",
-                    "一致条件反应时", "不一致条件反应时", "中性词反应时"]:
-            print(f"  {key}: {row[key]:.2f}")
-
-    print("\n总体统计:")
-    total_stats = stats_df[stats_df["level"] == "total"].iloc[0]
-    for key in ["正确率", "平均反应时", 
-                "一致条件正确率", "不一致条件正确率", "中性词正确率",
-                "一致条件反应时", "不一致条件反应时", "中性词反应时"]:
-        print(f"  {key}: {total_stats[key]:.2f}")

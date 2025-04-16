@@ -27,8 +27,8 @@ def load_data(experiment_type, data_path="data", patterns=None):
     if patterns is None:
         # 默认的文件匹配模式
         patterns = {
-            1: f"{experiment_type}_*_session1.csv",
-            2: f"{experiment_type}_*_session2.csv",
+            1: f"{experiment_type}_[0-9]*_session1.csv",
+            2: f"{experiment_type}_[0-9]*_session2.csv",
         }
 
     session_files = {}
@@ -57,11 +57,9 @@ def calculate_descriptive_stats(df, group_vars=None):
     if group_vars is None:
         group_vars = ["session", "condition"]
 
-    mean_stats = df.groupby(group_vars)["mean_rt"].agg(["mean"]).round(2).reset_index()
-    std_stats = df.groupby(group_vars)["mean_rt"].agg(["std"]).round(2).reset_index()
-    count_stats = (
-        df.groupby(group_vars)["mean_rt"].agg(["count"]).round(2).reset_index()
-    )
+    mean_stats = df.groupby(group_vars)["rt"].agg(["mean"]).round(2).reset_index()
+    std_stats = df.groupby(group_vars)["rt"].agg(["std"]).round(2).reset_index()
+    count_stats = df.groupby(group_vars)["rt"].agg(["count"]).round(2).reset_index()
 
     desc_stats = pd.merge(mean_stats, std_stats, on=group_vars)
     desc_stats = pd.merge(desc_stats, count_stats, on=group_vars)
@@ -69,7 +67,7 @@ def calculate_descriptive_stats(df, group_vars=None):
     return desc_stats
 
 
-def paired_t_test(df, condition_var="condition", condition_value=None):
+def paired_t_test(df, condition_var="condition", condition_value=None, y_var="rt"):
     """
     进行配对t检验
 
@@ -119,9 +117,15 @@ def paired_t_test(df, condition_var="condition", condition_value=None):
         ]
 
         if not s1_data.empty and not s2_data.empty:
-            session1_rt.append(s1_data["mean_rt"].iloc[0])
-            session2_rt.append(s2_data["mean_rt"].iloc[0])
+            session1_rt.append(s1_data[y_var].iloc[0])
+            session2_rt.append(s2_data[y_var].iloc[0])
 
+    session1_rt = np.array(session1_rt)
+    session2_rt = np.array(session2_rt)
+    # remove nan
+    nan_index = np.isnan(session1_rt) | np.isnan(session2_rt)
+    session1_rt = session1_rt[~nan_index]
+    session2_rt = session2_rt[~nan_index]
     # 进行统计检验
     if len(session1_rt) > 1:
         t_stat, p_val = stats.ttest_rel(session1_rt, session2_rt)
@@ -145,7 +149,7 @@ def paired_t_test(df, condition_var="condition", condition_value=None):
 def plot_bar_comparison(
     df,
     x_var,
-    y_var="mean_rt",
+    y_var="rt",
     hue_var="session",
     title=None,
     xlabel=None,
@@ -218,7 +222,7 @@ def plot_bar_comparison(
                 if not sub_df.empty:
                     mean_val = sub_df[y_var].mean()
                     x = j + (i - 0.5) * 0.35
-                    ax.text(x, mean_val, f"{mean_val:.1f}", ha="center", va="bottom")
+                    ax.text(x, mean_val, f"{mean_val:.2f}", ha="center", va="bottom")
 
     # Set legend
     # ax.legend(title="Experiment Phase", labels=["Pre-coffee", "Post-coffee"])
@@ -227,7 +231,7 @@ def plot_bar_comparison(
 
 
 def add_significance_markers(
-    ax, x_positions, p_value, height, dy=0.02, text_offset=0.01
+    ax, x_positions, p_value, height, dy=0.02, text_offset=0.01, width=1
 ):
     """
     Add significance markers (*, **, ***) to bar plots based on p-values
@@ -259,7 +263,7 @@ def add_significance_markers(
     # Draw a line between the bars
     x1, x2 = x_positions
     y = height + dy
-    ax.plot([x1, x2], [y, y], "k-", linewidth=1)
+    ax.plot([x1, x2], [y, y], "k-", linewidth=width)
 
     # Add the significance marker
     ax.text(

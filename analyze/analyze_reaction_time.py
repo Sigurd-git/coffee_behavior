@@ -2,11 +2,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from utils.plot import (
-    load_data,
     calculate_descriptive_stats,
     plot_bar_comparison,
     paired_t_test,
     add_significance_markers,
+)
+from utils.tasks import (
+    extract_nback,
+    extract_stroop,
+    extract_bart,
 )
 import os
 import seaborn as sns
@@ -21,132 +25,6 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.rcParams["font.sans-serif"] = ["SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
 sns.set_style("whitegrid")
-
-
-def extract_nback_rt(session_files):
-    """
-    从N-back实验数据中提取反应时指标
-
-    Parameters:
-    -----------
-    session_files : dict
-        包含各会话数据文件的字典
-
-    Returns:
-    --------
-    DataFrame : 包含被试ID、会话、条件和反应时的数据框
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "mean_rt": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-
-            # 只选择正确的试次和目标试次
-            correct_trials = df[df["target"] & df["correct"]]
-
-            # 计算每个n-back水平的平均反应时
-            for n_back in df["n_back"].unique():
-                n_back_trials = correct_trials[correct_trials["n_back"] == n_back]
-                if not n_back_trials.empty:
-                    # 只选择有效的反应时（不为空且不为0的值）
-                    valid_rts = [
-                        rt for rt in n_back_trials["rt"] if rt is not None and rt > 0
-                    ]
-                    if valid_rts:
-                        mean_rt = np.mean(valid_rts) * 1000  # 转换为毫秒
-                        all_data["task"].append("n-back")
-                        all_data["participant_id"].append(df["participant_id"].iloc[0])
-                        all_data["session"].append(session)
-                        all_data["condition"].append(int(n_back))
-                        all_data["mean_rt"].append(mean_rt)
-
-    return pd.DataFrame(all_data)
-
-
-def extract_stroop_rt(session_files):
-    """
-    从Stroop实验数据中提取反应时指标
-
-    Parameters:
-    -----------
-    session_files : dict
-        包含各会话数据文件的字典
-
-    Returns:
-    --------
-    DataFrame : 包含被试ID、会话、条件和反应时的数据框
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "mean_rt": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-
-            # 对于Stroop任务，从统计文件中获取总体指标
-            total_data = df[df["level"] == "total"].iloc[0]
-            all_data["task"].append("stroop")
-            all_data["participant_id"].append(total_data["participant_id"])
-            all_data["session"].append(session)
-            all_data["condition"].append("total")
-            all_data["mean_rt"].append(total_data["平均反应时"])
-
-    return pd.DataFrame(all_data)
-
-
-def extract_bart_rt(session_files):
-    """
-    Extract reaction time metrics from BART experiment data
-
-    Parameters:
-    -----------
-    session_files : dict
-        Dictionary containing session data files
-
-    Returns:
-    --------
-    DataFrame : DataFrame containing participant ID, session, condition and reaction time
-    """
-    all_data = {
-        "task": [],
-        "participant_id": [],
-        "session": [],
-        "condition": [],
-        "mean_rt": [],
-    }
-
-    for session, files in session_files.items():
-        for file in files:
-            df = pd.read_csv(file)
-
-            # Filter out non-numeric values and convert to float
-            df["rt"] = pd.to_numeric(df["rt"], errors="coerce")
-
-            # Calculate mean reaction time for valid trials
-            valid_rts = df[df["rt"].notna() & (df["rt"] > 0)]["rt"]
-
-            if not valid_rts.empty:
-                mean_rt = valid_rts.mean() * 1000  # Convert to milliseconds
-
-                all_data["task"].append("BART")
-                all_data["participant_id"].append(df["participant_id"].iloc[0])
-                all_data["session"].append(session)
-                all_data["condition"].append("overall")
-                all_data["mean_rt"].append(mean_rt)
-
-    return pd.DataFrame(all_data)
 
 
 def extract_emotion_rt(session_files):
@@ -167,7 +45,7 @@ def extract_emotion_rt(session_files):
         "participant_id": [],
         "session": [],
         "condition": [],
-        "mean_rt": [],
+        "rt": [],
     }
 
     for session, files in session_files.items():
@@ -184,15 +62,13 @@ def extract_emotion_rt(session_files):
                 ]["rating_rt"]
 
                 if not valid_rts.empty:
-                    mean_rt = (
-                        valid_rts.mean() * 1000
-                    )  # Convert to milliseconds if needed
+                    rt = valid_rts.mean() * 1000  # Convert to milliseconds if needed
 
                     all_data["task"].append("emotion")
                     all_data["participant_id"].append(df["participant_id"].iloc[0])
                     all_data["session"].append(session)
                     all_data["condition"].append(phase)
-                    all_data["mean_rt"].append(mean_rt)
+                    all_data["rt"].append(rt)
 
     return pd.DataFrame(all_data)
 
@@ -363,16 +239,9 @@ def analyze_experiment_rt(config, exclude_participant=None, only_participant=Non
     """
     results = {}
 
-    # 1. 加载数据
-    session_files = load_data(
-        config["experiment_type"],
-        config.get("data_path", "data"),
-        config.get("file_patterns", None),
-    )
-
     # 2. 提取数据
     extract_func = config["extract_function"]
-    df = extract_func(session_files)
+    df = extract_func(config)
 
     # 3. 如有需要，根据被试ID过滤数据
     if exclude_participant is not None:
@@ -441,7 +310,7 @@ def analyze_experiment_rt(config, exclude_participant=None, only_participant=Non
         plot_bar_comparison(
             df,
             x_var=plot_config.get("x_var", "condition"),
-            y_var=plot_config.get("y_var", "mean_rt"),
+            y_var=plot_config.get("y_var", "rt"),
             hue_var=plot_config.get("hue_var", "session"),
             title=plot_config.get(
                 "title",
@@ -456,7 +325,7 @@ def analyze_experiment_rt(config, exclude_participant=None, only_participant=Non
 
         # 添加显著性标记
         x_var = plot_config.get("x_var", "condition")
-        y_var = plot_config.get("y_var", "mean_rt")
+        y_var = plot_config.get("y_var", "rt")
         if x_var == "condition":
             # 遍历各个条件并添加显著性标记
             for i, condition in enumerate(df[x_var].unique()):
@@ -525,9 +394,7 @@ def analyze_stroop_detailed():
     """分析Stroop任务在不同条件下的反应时和正确率"""
 
     # 提取数据
-    df = extract_stroop_detailed_metrics(
-        exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8]
-    )
+    df = extract_stroop_detailed_metrics(exclude_participant=[0, 1, 8, 30])
 
     if df.empty:
         print("未找到有效的Stroop任务数据")
@@ -757,12 +624,8 @@ if __name__ == "__main__":
     # N-back实验配置
     nback_config = {
         "experiment_type": "nback",
-        "extract_function": extract_nback_rt,
-        "file_patterns": {
-            1: "nback_[0-9]*_session1.csv",
-            2: "nback_[0-9]*_session2.csv",
-        },
-        "conditions": [0, 1, 2],  # 不同的n-back水平
+        "extract_function": extract_nback,
+        "conditions": ["0-back", "1-back", "2-back"],  # 不同的n-back水平
         "condition_var": "condition",
         "plot_config": {
             "x_var": "condition",
@@ -776,12 +639,12 @@ if __name__ == "__main__":
     # Stroop实验配置
     stroop_config = {
         "experiment_type": "stroop",
-        "extract_function": extract_stroop_rt,
-        "file_patterns": {
-            1: "stroop_stats_[0-9]*_session1.csv",
-            2: "stroop_stats_[0-9]*_session2.csv",
-        },
-        "conditions": ["total"],  # Stroop只有一个总体条件
+        "extract_function": extract_stroop,
+        "conditions": [
+            "Consistent",
+            "Inconsistent",
+            "Neutral",
+        ],
         "plot_config": {
             "x_var": "condition",
             "title": "Stroop task reaction time comparison",
@@ -794,11 +657,7 @@ if __name__ == "__main__":
     # BART实验配置
     bart_config = {
         "experiment_type": "bart",
-        "extract_function": extract_bart_rt,
-        "file_patterns": {
-            1: "bart_[0-9]*_session1.csv",
-            2: "bart_[0-9]*_session2.csv",
-        },
+        "extract_function": extract_bart,
         "conditions": ["overall"],  # BART只分析总体反应时
         "plot_config": {
             "x_var": "condition",
@@ -830,24 +689,23 @@ if __name__ == "__main__":
     # }
 
     # 所有实验配置
-    # config_list = [nback_config, stroop_config, bart_config]
-    # config_list = [stroop_config]
+    config_list = [nback_config, stroop_config, bart_config]
 
-    # # 分析实验组数据（除8号被试外）
-    # print("==== Analyzing experimental group data (excluding subject 8) ====")
-    # for config in config_list:
-    #     # 更新输出文件名，加上exp前缀
-    #     config["plot_config"]["output_file"] = config["plot_config"][
-    #         "output_file"
-    #     ].replace(".png", "_exp.png")
-    #     config["plot_config"]["title"] = (
-    #         "Experimental group " + config["plot_config"]["title"]
-    #     )
+    # 分析实验组数据（除8号被试外）
+    print("==== Analyzing experimental group data (excluding subject 8) ====")
+    for config in config_list:
+        # 更新输出文件名，加上exp前缀
+        config["plot_config"]["output_file"] = config["plot_config"][
+            "output_file"
+        ].replace(".png", "_exp.png")
+        config["plot_config"]["title"] = (
+            "Experimental group " + config["plot_config"]["title"]
+        )
 
-    # print("Starting analysis of individual experiments for experimental group...")
-    # exp_results = analyze_combined_experiments(
-    #     config_list, exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8]
-    # )
+    print("Starting analysis of individual experiments for experimental group...")
+    exp_results = analyze_combined_experiments(
+        config_list, exclude_participant=[0, 1, 8]
+    )
 
     # # 分析对照组数据（只有8号被试）
     # print("\n==== Analyzing control group data (only subject 8) ====")
@@ -876,4 +734,4 @@ if __name__ == "__main__":
     print("Analysis completed!")
 
     # 分析Stroop任务在不同条件下的反应时和正确率
-    analyze_stroop_detailed()
+    # analyze_stroop_detailed()
