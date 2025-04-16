@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+from glob import glob
 
 
 def calculate_block_stats(block_df):
@@ -25,13 +26,13 @@ def calculate_block_stats(block_df):
 
     return {
         "正确率": block_df["correct"].mean() * 100,
-        "平均反应时": block_df["rt"].mean() * 1000,
+        "平均反应时": block_df["rt"].mean() * 1000 + 500,
         "一致条件正确率": congruent_trials["correct"].mean() * 100,
         "不一致条件正确率": incongruent_trials["correct"].mean() * 100,
         "中性词正确率": neutral_trials["correct"].mean() * 100,
-        "一致条件反应时": congruent_trials["rt"].mean() * 1000,
-        "不一致条件反应时": incongruent_trials["rt"].mean() * 1000,
-        "中性词反应时": neutral_trials["rt"].mean() * 1000,
+        "一致条件反应时": congruent_trials["rt"].mean() * 1000 + 500,
+        "不一致条件反应时": incongruent_trials["rt"].mean() * 1000 + 500,
+        "中性词反应时": neutral_trials["rt"].mean() * 1000 + 500,
     }
 
 
@@ -88,11 +89,100 @@ def recalculate_stroop_stats(raw_data_path):
     return stats_df
 
 
-# 处理数据
-# Process all stroop data files from participant 0 to 27, sessions 1 and 2
+# 修改循环范围，只处理10号及以后的被试
 all_stats = []
-for participant in range(3, 31):  # 0 to 30
+for participant in range(10, 34):  # 从10到33号被试
     for session in [1, 2]:
         filename = f"data/stroop_{participant}_session{session}.csv"
-        stats_df = recalculate_stroop_stats(filename)
-        all_stats.append(stats_df)
+        try:
+            stats_df = recalculate_stroop_stats(filename)
+            all_stats.append(stats_df)
+        except FileNotFoundError:
+            print(f"File not found: {filename}")
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+
+
+def extract_stroop_detailed_metrics(data_path="data", min_participant_id=10):
+    """
+    从Stroop实验数据中提取详细的反应时和正确率指标，只处理编号10及以后的被试
+    
+    Parameters:
+    -----------
+    data_path : str
+        数据文件所在目录
+    min_participant_id : int
+        最小被试编号（默认为10）
+    """
+    # 使用更宽松的文件匹配模式
+    session1_files = glob(f"{data_path}/stroop_*_session1_stats_new.csv")
+    session2_files = glob(f"{data_path}/stroop_*_session2_stats_new.csv")
+    
+    all_data = []
+
+    # 处理所有文件
+    for files, session in [(session1_files, 1), (session2_files, 2)]:
+        for file in files:
+            try:
+                df = pd.read_csv(file)
+                
+                # 获取被试ID
+                participant_id = df['participant_id'].iloc[0]
+                
+                # 只处理编号10及以后的被试
+                if participant_id < min_participant_id:
+                    continue
+
+                # 只处理总体数据
+                total_data = df[df["level"] == "total"].iloc[0]
+
+                # 添加总体指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "总体",
+                    "accuracy": total_data["正确率"],
+                    "rt": total_data["平均反应时"],
+                })
+
+                # 添加一致条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "一致",
+                    "accuracy": total_data["一致条件正确率"],
+                    "rt": total_data["一致条件反应时"],
+                })
+
+                # 添加不一致条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "不一致",
+                    "accuracy": total_data["不一致条件正确率"],
+                    "rt": total_data["不一致条件反应时"],
+                })
+
+                # 添加中性条件指标
+                all_data.append({
+                    "participant_id": participant_id,
+                    "session": session,
+                    "condition": "中性",
+                    "accuracy": total_data["中性词正确率"],
+                    "rt": total_data["中性词反应时"],
+                })
+
+            except Exception as e:
+                print(f"Error processing file {file}: {e}")
+
+    # 创建DataFrame
+    df = pd.DataFrame(all_data)
+    
+    # 打印找到的被试ID
+    unique_participants = sorted(df['participant_id'].unique())
+    print("\n处理的被试ID:", unique_participants)
+    
+    return df
+
+# 在调用函数时使用新的参数
+df = extract_stroop_detailed_metrics(data_path="data", min_participant_id=10)

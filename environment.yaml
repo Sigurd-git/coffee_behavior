@@ -1,9 +1,10 @@
 name: psychopy
 channels:
   - conda-forge
-dependencies:
+dependencies:s
   - python=3.10
   - numpy=1.23.5
+  - pandas
   - pip
   - pip:
     - psychopy

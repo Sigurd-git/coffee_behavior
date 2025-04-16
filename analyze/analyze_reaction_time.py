@@ -76,39 +76,36 @@ def extract_emotion_rt(session_files):
 def extract_stroop_detailed_metrics(data_path="data", exclude_participant=None):
     """
     从Stroop实验数据中提取详细的反应时和正确率指标
-
-    Parameters:
-    -----------
-    data_path : str
-        数据文件所在目录
-
-    Returns:
-    --------
-    DataFrame : 包含被试ID、会话、条件、反应时和正确率的数据框
     """
-    # Use glob to get all stroop stats files
-    session1_files = glob(f"{data_path}/stroop_*_session1_stats_new.csv")
-    session2_files = glob(f"{data_path}/stroop_*_session2_stats_new.csv")
-
+    # 使用更宽松的文件匹配模式
+    # 排除102、106、109号被试
+    session1_files = [f for f in glob(f"{data_path}/stroop_*_session1_stats_new.csv") 
+                     if not any(str(pid) in f for pid in [13, 19, 25, 102, 106, 109])]
+    session2_files = [f for f in glob(f"{data_path}/stroop_*_session2_stats_new.csv")
+                     if not any(str(pid) in f for pid in [13, 19, 25, 102, 106, 109])]
+    print("\nFound files:")
+    print("Session 1 files:", session1_files)
+    print("Session 2 files:", session2_files)
+    
     all_data = []
 
-    # Process all files
+    # 处理所有文件
     for files, session in [(session1_files, 1), (session2_files, 2)]:
         for file in files:
             try:
                 df = pd.read_csv(file)
+                
+                # 打印当前处理的文件和被试ID
+                participant_id = df['participant_id'].iloc[0]
+                print(f"\nProcessing file: {file}")
+                print(f"Participant ID: {participant_id}")
 
-                # Only process total data
-                total_data = df[df["level"] == "total"].iloc[0]
-
-                # Extract participant ID
-                participant_id = total_data["participant_id"]
-
-                if (
-                    exclude_participant is not None
-                    and participant_id in exclude_participant
-                ):
+                if exclude_participant is not None and participant_id in exclude_participant:
+                    print(f"Skipping excluded participant {participant_id}")
                     continue
+
+                # 只处理总体数据
+                total_data = df[df["level"] == "total"].iloc[0]
 
                 # Add overall metrics
                 all_data.append(
@@ -181,47 +178,12 @@ def extract_stroop_detailed_metrics(data_path="data", exclude_participant=None):
 
             except Exception as e:
                 print(f"Error processing file {file}: {e}")
-
-    # Create DataFrame
-    df = pd.DataFrame(all_data)
-
-    # Create plots for interference effects
-    plt.figure(figsize=(12, 5))
-
-    # Plot for incongruent-neutral difference
-    plt.subplot(1, 2, 1)
-    inc_neu_data = df[df["condition"] == "不一致-中性"]
-    sns.boxplot(x="session", y="rt", data=inc_neu_data)
-    plt.title("不一致-中性 干扰效应")
-    plt.xlabel("Session")
-    plt.ylabel("反应时差异 (ms)")
-
-    # Perform t-test
-    s1_data = inc_neu_data[inc_neu_data["session"] == 1]["rt"]
-    s2_data = inc_neu_data[inc_neu_data["session"] == 2]["rt"]
-    t_stat, p_val = stats.ttest_rel(s1_data, s2_data)
-    if p_val < 0.05:
-        plt.text(0.5, plt.ylim()[1], "*", ha="center", va="bottom", fontsize=14)
-
-    # Plot for congruent-neutral difference
-    plt.subplot(1, 2, 2)
-    con_neu_data = df[df["condition"] == "一致-中性"]
-    sns.boxplot(x="session", y="rt", data=con_neu_data)
-    plt.title("一致-中性 干扰效应")
-    plt.xlabel("Session")
-    plt.ylabel("反应时差异 (ms)")
-
-    # Perform t-test
-    s1_data = con_neu_data[con_neu_data["session"] == 1]["rt"]
-    s2_data = con_neu_data[con_neu_data["session"] == 2]["rt"]
-    t_stat, p_val = stats.ttest_rel(s1_data, s2_data)
-    if p_val < 0.05:
-        plt.text(0.5, plt.ylim()[1], "*", ha="center", va="bottom", fontsize=14)
-
-    plt.tight_layout()
-    plt.show()
-
-    return df
+                
+    # 打印找到的所有被试ID
+    unique_participants = sorted(list(set(df['participant_id'] for df in all_data)))
+    print("\nFound participant IDs:", unique_participants)
+    
+    return pd.DataFrame(all_data)
 
 
 def analyze_experiment_rt(config, exclude_participant=None, only_participant=None):
@@ -391,7 +353,7 @@ def analyze_combined_experiments(
 
 
 def analyze_stroop_detailed():
-    """分析Stroop任务在不同条件下的反应时和正确率"""
+    """分析Stroop任务在不同条件下的反应时、正确率和IES"""
 
     # 提取数据
     df = extract_stroop_detailed_metrics(exclude_participant=[0, 1, 8, 30])
@@ -419,199 +381,108 @@ def analyze_stroop_detailed():
     )
     print(f"\n完成两个session的被试数量: {len(common_participants)}")
 
-    # 进行配对t检验（按条件分组）
-    ttest_results = {}
-
-    for condition in df["condition"].unique():
-        condition_data = df[df["condition"] == condition]
-
-        # 准备配对数据
-        paired_data = []
-
-        for pid in common_participants:
-            s1_data = condition_data[
-                (condition_data["session"] == 1)
-                & (condition_data["participant_id"] == pid)
-            ]
-            s2_data = condition_data[
-                (condition_data["session"] == 2)
-                & (condition_data["participant_id"] == pid)
-            ]
-
-            if not s1_data.empty and not s2_data.empty:
-                paired_data.append(
-                    {
-                        "participant_id": pid,
-                        "session1_acc": s1_data["accuracy"].iloc[0],
-                        "session2_acc": s2_data["accuracy"].iloc[0],
-                        "session1_rt": s1_data["rt"].iloc[0],
-                        "session2_rt": s2_data["rt"].iloc[0],
-                    }
-                )
-
-        if paired_data:
-            paired_df = pd.DataFrame(paired_data)
-
-            # 正确率t检验
-            t_acc, p_acc = stats.ttest_rel(
-                paired_df["session1_acc"], paired_df["session2_acc"]
-            )
-
-            # 反应时t检验
-            t_rt, p_rt = stats.ttest_rel(
-                paired_df["session1_rt"], paired_df["session2_rt"]
-            )
-
-            ttest_results[condition] = {
-                "n_subjects": len(paired_df),
-                "accuracy": {
-                    "t_stat": t_acc,
-                    "p_val": p_acc,
-                    "session1_mean": paired_df["session1_acc"].mean(),
-                    "session2_mean": paired_df["session2_acc"].mean(),
-                },
-                "rt": {
-                    "t_stat": t_rt,
-                    "p_val": p_rt,
-                    "session1_mean": paired_df["session1_rt"].mean(),
-                    "session2_mean": paired_df["session2_rt"].mean(),
-                },
-            }
-
-    # 打印统计检验结果
-    print("\n统计检验结果：")
-    for condition, result in ttest_results.items():
-        print(f"\n{condition}条件:")
-        print(f"完成两个session的被试数量: {result['n_subjects']}")
-
-        print("正确率对比:")
-        print(
-            f"t = {result['accuracy']['t_stat']:.3f}, p = {result['accuracy']['p_val']:.3f}"
-        )
-        print(f"咖啡前平均正确率: {result['accuracy']['session1_mean']:.2f}%")
-        print(f"咖啡后平均正确率: {result['accuracy']['session2_mean']:.2f}%")
-
-        print("反应时对比:")
-        print(f"t = {result['rt']['t_stat']:.3f}, p = {result['rt']['p_val']:.3f}")
-        print(f"咖啡前平均反应时: {result['rt']['session1_mean']:.2f} ms")
-        print(f"咖啡后平均反应时: {result['rt']['session2_mean']:.2f} ms")
-
-    # 绘制反应时对比图
-    plt.figure(figsize=(12, 6))
-
-    # 准备绘图数据
-    plot_data = df.copy()
-
-    # 将中文条件名转换为英文
-    condition_mapping = {
-        "总体": "Overall",
-        "一致": "Congruent",
-        "不一致": "Incongruent",
-        "中性": "Neutral",
-    }
-    plot_data["condition"] = plot_data["condition"].map(condition_mapping)
-
-    # remove nan condition
-    plot_data = plot_data[plot_data["condition"].notna()]
-
-    # 将中文session名转换为英文
-    plot_data["session"] = plot_data["session"].map({1: "Pre-coffee", 2: "Post-coffee"})
-
-    # 绘制反应时条形图
-    ax = sns.barplot(
-        x="condition",
-        y="rt",
-        hue="session",
-        data=plot_data,
-        palette=["lightblue", "lightgreen"],
-        errorbar="se",
-    )
-
-    # 添加标题和标签
-    plt.title("Stroop Task Reaction Time Comparison by Condition", fontsize=14)
-    plt.xlabel("Condition", fontsize=12)
-    plt.ylabel("Reaction Time (ms)", fontsize=12)
-    plt.legend(title="Experiment Stage")
-
-    # 添加数值标签
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%.1f", fontsize=9)
-
-    # 添加显著性标记
-    for i, condition in enumerate(plot_data["condition"].unique()):
-        orig_condition = [k for k, v in condition_mapping.items() if v == condition][0]
-        if orig_condition in ttest_results:
-            result = ttest_results[orig_condition]["rt"]
-            p_val = result["p_val"]
-
-            # 计算显著性标记的高度
-            max_height = max(result["session1_mean"], result["session2_mean"]) * 1.1
-
-            # 添加显著性标记
-            if p_val < 0.001:
-                plt.text(i, max_height, "***", ha="center", fontsize=12)
-            elif p_val < 0.01:
-                plt.text(i, max_height, "**", ha="center", fontsize=12)
-            elif p_val < 0.05:
-                plt.text(i, max_height, "*", ha="center", fontsize=12)
-            else:
-                plt.text(i, max_height, "ns", ha="center", fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(
-        "output/stroop_rt_conditions_comparison.png", dpi=300, bbox_inches="tight"
-    )
-
-    # 绘制正确率对比图
-    plt.figure(figsize=(12, 6))
-
-    # 绘制正确率条形图
-    ax = sns.barplot(
-        x="condition",
-        y="accuracy",
-        hue="session",
-        data=plot_data,
-        palette=["lightblue", "lightgreen"],
-        errorbar="se",
-    )
-
-    # 添加标题和标签
-    plt.title("Stroop Task Accuracy Comparison by Condition", fontsize=14)
-    plt.xlabel("Condition", fontsize=12)
-    plt.ylabel("Accuracy (%)", fontsize=12)
-    plt.legend(title="Experiment Stage")
-
-    # 添加数值标签
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%.1f", fontsize=9)
-
-    # 添加显著性标记
-    for i, condition in enumerate(plot_data["condition"].unique()):
-        orig_condition = [k for k, v in condition_mapping.items() if v == condition][0]
-        if orig_condition in ttest_results:
-            result = ttest_results[orig_condition]["accuracy"]
-            p_val = result["p_val"]
-
-            # 计算显著性标记的高度
-            max_height = max(result["session1_mean"], result["session2_mean"]) * 1.05
-
-            # 添加显著性标记
-            if p_val < 0.001:
-                plt.text(i, max_height, "***", ha="center", fontsize=12)
-            elif p_val < 0.01:
-                plt.text(i, max_height, "**", ha="center", fontsize=12)
-            elif p_val < 0.05:
-                plt.text(i, max_height, "*", ha="center", fontsize=12)
-            else:
-                plt.text(i, max_height, "ns", ha="center", fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(
-        "output/stroop_accuracy_conditions_comparison.png", dpi=300, bbox_inches="tight"
-    )
-
-    # 显示图表
-    plt.show()
+    # 创建结果DataFrame
+    results_data = []
+    
+    for pid in common_participants:
+        for session in [1, 2]:
+            session_data = df[df['session'] == session]
+            subject_data = session_data[session_data['participant_id'] == pid]
+            
+            # 获取各条件的反应时和正确率
+            incongruent_data = subject_data[subject_data['condition'] == '不一致'].iloc[0]
+            congruent_data = subject_data[subject_data['condition'] == '一致'].iloc[0]
+            neutral_data = subject_data[subject_data['condition'] == '中性'].iloc[0]
+            
+            # 计算各条件的IES (RT/accuracy)
+            incongruent_ies = incongruent_data['rt'] / (incongruent_data['accuracy'] / 100)
+            congruent_ies = congruent_data['rt'] / (congruent_data['accuracy'] / 100)
+            neutral_ies = neutral_data['rt'] / (neutral_data['accuracy'] / 100)
+            
+            # 计算效应值
+            incongruent_congruent = incongruent_data['rt'] - congruent_data['rt']
+            incongruent_neutral = incongruent_data['rt'] - neutral_data['rt']
+            neutral_congruent = neutral_data['rt'] - congruent_data['rt']
+            
+            # 计算IES效应值
+            incongruent_congruent_ies = incongruent_ies - congruent_ies
+            incongruent_neutral_ies = incongruent_ies - neutral_ies
+            neutral_congruent_ies = neutral_ies - congruent_ies
+            
+            results_data.append({
+                'Subject_ID': pid,
+                'Session': f'Session {session}',
+                'Incongruent-Congruent_RT': round(incongruent_congruent, 2),
+                'Incongruent-Neutral_RT': round(incongruent_neutral, 2),
+                'Neutral-Congruent_RT': round(neutral_congruent, 2),
+                'Incongruent-Congruent_IES': round(incongruent_congruent_ies, 2),
+                'Incongruent-Neutral_IES': round(incongruent_neutral_ies, 2),
+                'Neutral-Congruent_IES': round(neutral_congruent_ies, 2)
+            })
+    
+    # 创建DataFrame并保存为Excel
+    results_df = pd.DataFrame(results_data)
+    
+    # 重新组织数据以使session1和session2并排显示
+    pivot_df = results_df.pivot(index='Subject_ID', 
+                              columns='Session', 
+                              values=['Incongruent-Congruent_RT', 
+                                    'Incongruent-Neutral_RT', 
+                                    'Neutral-Congruent_RT',
+                                    'Incongruent-Congruent_IES',
+                                    'Incongruent-Neutral_IES',
+                                    'Neutral-Congruent_IES'])
+    
+    # 计算描述性统计
+    desc_stats = pivot_df.agg(['mean', 'std']).round(2)
+    
+    # 将描述性统计添加到主DataFrame
+    final_df = pd.concat([pivot_df, desc_stats])
+    
+    # 保存到Excel
+    excel_path = 'output/stroop_interference_effects.xlsx'
+    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+        # 保存主要结果
+        final_df.to_excel(writer, sheet_name='Detailed Results')
+        
+        # 创建配对t检验结果的sheet
+        t_test_results = []
+        measures = ['Incongruent-Congruent_RT', 'Incongruent-Neutral_RT', 'Neutral-Congruent_RT',
+                   'Incongruent-Congruent_IES', 'Incongruent-Neutral_IES', 'Neutral-Congruent_IES']
+        
+        for measure in measures:
+            session1_data = results_df[results_df['Session'] == 'Session 1'][measure]
+            session2_data = results_df[results_df['Session'] == 'Session 2'][measure]
+            t_stat, p_val = stats.ttest_rel(session1_data, session2_data)
+            
+            t_test_results.append({
+                'Measure': measure,
+                't_statistic': round(t_stat, 3),
+                'p_value': round(p_val, 3),
+                'Session1_Mean': round(session1_data.mean(), 2),
+                'Session1_SD': round(session1_data.std(), 2),
+                'Session2_Mean': round(session2_data.mean(), 2),
+                'Session2_SD': round(session2_data.std(), 2)
+            })
+        
+        # 保存t检验结果
+        pd.DataFrame(t_test_results).to_excel(writer, sheet_name='T-test Results', index=False)
+    
+    print(f"\nResults have been saved to: {excel_path}")
+    
+    # 打印结果预览
+    print("\nDetailed Results Preview:")
+    print(pivot_df.round(2))
+    
+    print("\nDescriptive Statistics:")
+    print(desc_stats)
+    
+    print("\nPaired t-test Results:")
+    for result in t_test_results:
+        print(f"\n{result['Measure']}:")
+        print(f"t = {result['t_statistic']}, p = {result['p_value']}")
+        print(f"Session 1: M = {result['Session1_Mean']}, SD = {result['Session1_SD']}")
+        print(f"Session 2: M = {result['Session2_Mean']}, SD = {result['Session2_SD']}")
 
 
 # 示例用法
