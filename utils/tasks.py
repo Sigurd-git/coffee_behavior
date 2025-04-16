@@ -1,6 +1,16 @@
 import os
 import pandas as pd
 from utils.plot import load_data
+import numpy as np
+
+
+def split_emo_normal(result_df):
+    emo_df = result_df[result_df["participant_id"] > 100]
+    normal_df = result_df[result_df["participant_id"] < 100]
+    emo_df["group"] = "emo"
+    normal_df["group"] = "normal"
+    result_df = pd.concat([emo_df, normal_df])
+    return result_df
 
 
 # 提取n-back任务的正确率和rt
@@ -53,7 +63,7 @@ def extract_nback(experiment_config):
     result_df["rt"] = result_df["rt"] * 1000
     result_df["task"] = "n-back"
     result_df["condition"] = result_df["n_back"].astype(str) + "-back"
-
+    result_df = split_emo_normal(result_df)
     return result_df
 
 
@@ -107,13 +117,117 @@ def extract_stroop(experiment_config):
             "rt": "mean",
         }
     )
+
+    # Calculate interference effects for each participant and session
+    # First, pivot the data to have conditions as columns for easier calculation
+    pivot_acc = combined_data.pivot_table(
+        index=["participant_id", "session"],
+        columns="condition",
+        values="correct",
+        aggfunc="mean",
+    ).reset_index()
+
+    pivot_rt = combined_data.pivot_table(
+        index=["participant_id", "session"],
+        columns="condition",
+        values="rt",
+        aggfunc="mean",
+    ).reset_index()
+
+    # Calculate interference effects for accuracy
+    interference_acc = pd.DataFrame(
+        {
+            "participant_id": pivot_acc["participant_id"],
+            "session": pivot_acc["session"],
+            "condition": "Inconsistent-Consistent",
+            "correct": pivot_acc["Inconsistent"] - pivot_acc["Consistent"],
+        }
+    )
+
+    incongruent_neutral_acc = pd.DataFrame(
+        {
+            "participant_id": pivot_acc["participant_id"],
+            "session": pivot_acc["session"],
+            "condition": "Inconsistent-Neutral",
+            "correct": pivot_acc["Inconsistent"] - pivot_acc["Neutral"],
+        }
+    )
+
+    neutral_congruent_acc = pd.DataFrame(
+        {
+            "participant_id": pivot_acc["participant_id"],
+            "session": pivot_acc["session"],
+            "condition": "Neutral-Consistent",
+            "correct": pivot_acc["Neutral"] - pivot_acc["Consistent"],
+        }
+    )
+
+    # Calculate interference effects for RT
+    interference_rt = pd.DataFrame(
+        {
+            "participant_id": pivot_rt["participant_id"],
+            "session": pivot_rt["session"],
+            "condition": "Inconsistent-Consistent",
+            "rt": pivot_rt["Inconsistent"] - pivot_rt["Consistent"],
+        }
+    )
+
+    incongruent_neutral_rt = pd.DataFrame(
+        {
+            "participant_id": pivot_rt["participant_id"],
+            "session": pivot_rt["session"],
+            "condition": "Inconsistent-Neutral",
+            "rt": pivot_rt["Inconsistent"] - pivot_rt["Neutral"],
+        }
+    )
+
+    neutral_congruent_rt = pd.DataFrame(
+        {
+            "participant_id": pivot_rt["participant_id"],
+            "session": pivot_rt["session"],
+            "condition": "Neutral-Consistent",
+            "rt": pivot_rt["Neutral"] - pivot_rt["Consistent"],
+        }
+    )
+
+    # Combine all interference effects
+    interference_effects = pd.merge(
+        interference_acc, interference_rt, on=["participant_id", "session", "condition"]
+    )
+
+    incongruent_neutral_effects = pd.merge(
+        incongruent_neutral_acc,
+        incongruent_neutral_rt,
+        on=["participant_id", "session", "condition"],
+    )
+
+    neutral_congruent_effects = pd.merge(
+        neutral_congruent_acc,
+        neutral_congruent_rt,
+        on=["participant_id", "session", "condition"],
+    )
+
+    # Combine all effects with the original data
+    interference_df = pd.concat(
+        [
+            interference_effects,
+            incongruent_neutral_effects,
+            neutral_congruent_effects,
+        ]
+    )
+
     # Create result dataframe
     result_df = result_df.reset_index()
     stim_duration = 500
     result_df["rt"] = result_df["rt"] * 1000 + stim_duration
     result_df.rename(columns={"correct": "accuracy"}, inplace=True)
     result_df["task"] = "stroop"
-    return result_df
+    interference_df["rt"] = interference_df["rt"] * 1000
+    interference_df.rename(columns={"correct": "accuracy"}, inplace=True)
+    interference_df["task"] = "stroop"
+    result_df = split_emo_normal(result_df)
+    interference_df = split_emo_normal(interference_df)
+    return interference_df, result_df
 
 
 # 提取BART任务的准确率和rt
@@ -142,6 +256,7 @@ def extract_bart(experiment_config):
             df = pd.read_csv(file)
             # remove rows with any NA values
             df = df[df["exploded"].notna()]
+            df = df[df["rt"].notna()]
 
             # Extract participant ID from filename
             file_name = os.path.basename(file)
@@ -157,15 +272,17 @@ def extract_bart(experiment_config):
     # Combine all data
     if all_files_data:
         combined_data = pd.concat(all_files_data, ignore_index=True)
-
         # Calculate explosion rate and earnings metrics by participant and session
         result_df = (
             combined_data.groupby(["participant_id", "session"])
             .agg(
                 explosion_rate=("exploded", lambda x: (sum(x) / len(x)) * 100),
                 rt=("rt", "mean"),
+                pumps=("pumps", "mean"),
                 total_earned=("earned", "sum"),
                 n_unexploded=("exploded", lambda x: sum(1 - x)),
+                variance_first_half=("pumps", lambda x: np.var(x[: len(x) // 2])),
+                variance_second_half=("pumps", lambda x: np.var(x[len(x) // 2 :])),
             )
             .reset_index()
         )
@@ -175,8 +292,8 @@ def extract_bart(experiment_config):
         result_df["rt"] = result_df["rt"] * 1000
         # Add task and condition columns
         result_df["task"] = "BART"
-        result_df["condition"] = "overall"
-
+        # 将数据分为emo和normal
+        result_df = split_emo_normal(result_df)
         print(
             f"Processed BART explosion rates for {len(result_df)} participant-session combinations"
         )
@@ -216,41 +333,22 @@ def extract_emotion(experiment_config):
     all_data = []
     for session, files in session_files.items():
         for file in files:
-            try:
-                df = pd.read_csv(file)
+            df = pd.read_csv(file)
 
-                # Extract participant ID from filename
-                file_name = os.path.basename(file)
-                participant_id = int(file_name.split("_")[1])
+            # Extract participant ID from filename
+            file_name = os.path.basename(file)
+            participant_id = int(file_name.split("_")[1])
 
-                # Create emotion type from category and phase
-                df["emotion_type"] = df["category"]
-                # For negative stimuli in regulation phase, mark as "regulation"
-                df.loc[
-                    (df["category"] == "negative") & (df["phase"] == "regulation"),
-                    "emotion_type",
-                ] = "regulation"
-
-                # # Process each emotion type separately
-                # for emotion_type in df["emotion_type"].unique():
-                #     emotion_data = df[df["emotion_type"] == emotion_type]
-
-                #     # Calculate mean valence and arousal for this emotion type
-                #     mean_valence = emotion_data["valence"].mean()
-                #     mean_arousal = emotion_data["arousal"].mean()
-
-                #     # Add data to results
-                #     all_data["participant_id"].append(participant_id)
-                #     all_data["session"].append(session)
-                #     all_data["emotion_type"].append(emotion_type)
-                #     all_data["mean_valence"].append(mean_valence)
-                #     all_data["mean_arousal"].append(mean_arousal)
-                df["session"] = session
-                df["participant_id"] = participant_id
-                all_data.append(df)
-
-            except Exception as e:
-                print(f"Error processing file {file}: {e}")
+            # Create emotion type from category and phase
+            df["emotion_type"] = df["category"]
+            # For negative stimuli in regulation phase, mark as "regulation"
+            df.loc[
+                (df["category"] == "negative") & (df["phase"] == "regulation"),
+                "emotion_type",
+            ] = "regulation"
+            df["session"] = session
+            df["participant_id"] = participant_id
+            all_data.append(df)
 
     combined_data = pd.concat(all_data, ignore_index=True)
     result_df = combined_data.groupby(
@@ -263,4 +361,5 @@ def extract_emotion(experiment_config):
     )
     result_df.reset_index(inplace=True)
     result_df["task"] = "emotion"
+    result_df = split_emo_normal(result_df)
     return result_df

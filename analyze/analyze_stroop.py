@@ -2,17 +2,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from utils.plot import (
-    plot_bar_comparison,
-    paired_t_test,
-    add_significance_markers,
-)
-from utils.tasks import (
-    extract_nback,
-    extract_stroop,
-    extract_bart,
-)
+from utils.plot import plot_bar_comparison
+from utils.tasks import extract_stroop
 from statannotations.Annotator import Annotator
+
 
 def analyze_experiment_accuracy(
     experiment_config, exclude_participant=None, only_participant=None

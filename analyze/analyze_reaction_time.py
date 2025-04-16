@@ -1,12 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.plot import (
-    calculate_descriptive_stats,
-    plot_bar_comparison,
-    paired_t_test,
-    add_significance_markers,
-)
+from utils.plot import plot_bar_comparison
 from utils.tasks import (
     extract_nback,
     extract_stroop,
@@ -16,7 +11,7 @@ import os
 import seaborn as sns
 from glob import glob
 from scipy import stats
-
+from statannotations.Annotator import Annotator
 # Set font for displaying text
 plt.rcParams["font.sans-serif"] = ["Arial"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -204,7 +199,8 @@ def analyze_experiment_rt(config, exclude_participant=None, only_participant=Non
     # 2. 提取数据
     extract_func = config["extract_function"]
     df = extract_func(config)
-
+    if isinstance(df, tuple):
+        df, original_df = df
     # 3. 如有需要，根据被试ID过滤数据
     if exclude_participant is not None:
         if isinstance(exclude_participant, list):
@@ -224,104 +220,84 @@ def analyze_experiment_rt(config, exclude_participant=None, only_participant=Non
             f"Experiment {config['experiment_type']} has no valid data after filtering"
         )
 
-    # 3. 描述性统计
-    group_vars = config.get("group_vars", ["session", "condition"])
-    desc_stats = calculate_descriptive_stats(df, group_vars)
-    results["descriptive_stats"] = desc_stats
-
-    # 4. 统计检验
-    ttest_results = {}
-    conditions = config.get("conditions", [None])
-    condition_var = config.get("condition_var", "condition")
-
-    for condition in conditions:
-        condition_key = str(condition) if condition is not None else "overall"
-        ttest_results[condition_key] = paired_t_test(df, condition_var, condition)
-
-    results["ttest_results"] = ttest_results
-
-    # 5. 打印结果
-    print(f"\n{config['experiment_type'].upper()} Task Analysis Results:")
-    print("\nDescriptive Statistics:")
-    print(desc_stats)
-
-    print("\nStatistical Test Results:")
-    for condition, result in ttest_results.items():
-        if result["n_subjects"] > 0:
-            condition_name = f"{condition}" if condition != "overall" else "Overall"
-            print(f"\n{condition_name}:")
-            print(
-                f"Number of subjects completing both sessions: {result['n_subjects']}"
-            )
-            if result["t_stat"] is not None:
-                print(f"t = {result['t_stat']:.3f}, p = {result['p_val']:.3f}")
-                print(
-                    f"Pre-coffee mean reaction time: {result['session1_mean']:.2f} ms"
-                )
-                print(
-                    f"Post-coffee mean reaction time: {result['session2_mean']:.2f} ms"
-                )
-            else:
-                print("Insufficient sample size for statistical testing")
-
     # 6. 可视化
     if config.get("plot", True):
         plot_config = config.get("plot_config", {})
-        fig, ax = plt.subplots(figsize=plot_config.get("figsize", (8, 5)))
-
-        plot_bar_comparison(
-            df,
-            x_var=plot_config.get("x_var", "condition"),
-            y_var=plot_config.get("y_var", "rt"),
-            hue_var=plot_config.get("hue_var", "session"),
-            title=plot_config.get(
-                "title",
-                f"{config['experiment_type']} Task Reaction Time Comparison",
-            ),
-            xlabel=plot_config.get("xlabel", "Condition"),
-            ylabel=plot_config.get("ylabel", "Reaction Time (ms)"),
-            palette=plot_config.get("palette", ["lightblue", "lightgreen"]),
-            ax=ax,
-            show_values=plot_config.get("show_values", True),
+        row_var = plot_config.get("row_var", None)
+        if row_var is not None:
+            row_values = df[row_var].unique()
+            fig, axes = plt.subplots(
+                figsize=plot_config.get("figsize", (8, 5)),
+                nrows=len(row_values),
+                ncols=1,
+            )
+        else:
+            row_values = [None]
+            fig, ax = plt.subplots(figsize=plot_config.get("figsize", (8, 5)))
+            axes = [ax]
+        title = plot_config.get(
+            "title",
+            f"{config['experiment_type']} Task Accuracy Comparison",
         )
-
-        # 添加显著性标记
-        x_var = plot_config.get("x_var", "condition")
-        y_var = plot_config.get("y_var", "rt")
-        if x_var == "condition":
-            # 遍历各个条件并添加显著性标记
-            for i, condition in enumerate(df[x_var].unique()):
-                condition_key = str(condition) if condition is not None else "overall"
-                if condition_key in ttest_results:
-                    result = ttest_results[condition_key]
-                    if result["p_val"] is not None and result["n_subjects"] > 1:
-                        # 计算显著性标记的高度（使用两个条上限的最大值）
-                        condition_data = df[df[x_var] == condition]
-                        max_height = (
-                            condition_data.groupby("session")[y_var].mean().max() * 1.1
-                        )
-                        # 添加显著性标记
-                        x_positions = [i - 0.2, i + 0.2]  # 根据条形图的宽度和位置调整
-                        add_significance_markers(
-                            ax, x_positions, result["p_val"], max_height
-                        )
-
+        fig.suptitle(title)
+        for row_value, ax in zip(row_values, axes):
+            if row_value is not None:
+                df_row = df[df[row_var] == row_value]
+            else:
+                df_row = df
+            plot_bar_comparison(
+                df_row,
+                x_var=plot_config.get("x_var", "condition"),
+                y_var=plot_config.get("y_var", "rt"),  # 使用accuracy作为y轴变量
+                hue_var=plot_config.get("hue_var", "session"),
+                xlabel=plot_config.get("xlabel", "Condition"),
+                ylabel=plot_config.get("ylabel", "Reaction Time (ms)"),
+                palette=plot_config.get("palette", ["lightblue", "lightgreen"]),
+                ax=ax,
+                show_values=plot_config.get("show_values", True),
+            )
+            ax.set_title(row_value)
+            # 添加显著性标记
+            x_var = plot_config.get("x_var", "condition")
+            y_var = plot_config.get("y_var", "rt")  # 使用正确的y变量名
+            hue_var = plot_config.get("hue_var", "session")
+            x_values = df_row[x_var].unique()
+            hue_values = df_row[hue_var].unique()
+            box_pairs = []
+            for x in x_values:
+                for i in range(len(hue_values)):
+                    for j in range(i + 1, len(hue_values)):
+                        box_pairs.append(((x, hue_values[i]), (x, hue_values[j])))
+            annotator = Annotator(
+                ax,
+                box_pairs,
+                data=df_row,
+                x=x_var,
+                y=y_var,
+                order=x_values,
+                hue=hue_var,
+            )
+            annotator.configure(
+                test="t-test_paired",
+                text_format="star",
+                loc="inside",
+                hide_non_significant=True,
+            )
+            annotator.apply_and_annotate()
         plt.tight_layout()
-
+        # n_1 = df_row[(df_row["condition"] == "2-back") & (df_row["session"] == 1)]
+        # n_2 = df_row[(df_row["condition"] == "2-back") & (df_row["session"] == 2)]
+        # t_stat, p_val = stats.ttest_rel(n_1["rt"], n_2["rt"])
+        # print(f"t-statistic: {t_stat}, p-value: {p_val}")
         # 保存图表
         output_dir = config.get("output_dir", "output")
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(
             output_dir,
-            plot_config.get(
-                "output_file",
-                f"{config['experiment_type']}_rt_comparison.png",
-            ),
+            plot_config.get("output_file"),
         )
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
-
-        if plot_config.get("show", True):
-            plt.show()
+        plt.close()
 
     return results
 
@@ -383,100 +359,120 @@ def analyze_stroop_detailed():
 
     # 创建结果DataFrame
     results_data = []
-    
+
     for pid in common_participants:
         for session in [1, 2]:
-            session_data = df[df['session'] == session]
-            subject_data = session_data[session_data['participant_id'] == pid]
-            
+            session_data = df[df["session"] == session]
+            subject_data = session_data[session_data["participant_id"] == pid]
+
             # 获取各条件的反应时和正确率
-            incongruent_data = subject_data[subject_data['condition'] == '不一致'].iloc[0]
-            congruent_data = subject_data[subject_data['condition'] == '一致'].iloc[0]
-            neutral_data = subject_data[subject_data['condition'] == '中性'].iloc[0]
-            
+            incongruent_data = subject_data[subject_data["condition"] == "不一致"].iloc[
+                0
+            ]
+            congruent_data = subject_data[subject_data["condition"] == "一致"].iloc[0]
+            neutral_data = subject_data[subject_data["condition"] == "中性"].iloc[0]
+
             # 计算各条件的IES (RT/accuracy)
-            incongruent_ies = incongruent_data['rt'] / (incongruent_data['accuracy'] / 100)
-            congruent_ies = congruent_data['rt'] / (congruent_data['accuracy'] / 100)
-            neutral_ies = neutral_data['rt'] / (neutral_data['accuracy'] / 100)
-            
+            incongruent_ies = incongruent_data["rt"] / (
+                incongruent_data["accuracy"] / 100
+            )
+            congruent_ies = congruent_data["rt"] / (congruent_data["accuracy"] / 100)
+            neutral_ies = neutral_data["rt"] / (neutral_data["accuracy"] / 100)
+
             # 计算效应值
-            incongruent_congruent = incongruent_data['rt'] - congruent_data['rt']
-            incongruent_neutral = incongruent_data['rt'] - neutral_data['rt']
-            neutral_congruent = neutral_data['rt'] - congruent_data['rt']
-            
+            incongruent_congruent = incongruent_data["rt"] - congruent_data["rt"]
+            incongruent_neutral = incongruent_data["rt"] - neutral_data["rt"]
+            neutral_congruent = neutral_data["rt"] - congruent_data["rt"]
+
             # 计算IES效应值
             incongruent_congruent_ies = incongruent_ies - congruent_ies
             incongruent_neutral_ies = incongruent_ies - neutral_ies
             neutral_congruent_ies = neutral_ies - congruent_ies
-            
-            results_data.append({
-                'Subject_ID': pid,
-                'Session': f'Session {session}',
-                'Incongruent-Congruent_RT': round(incongruent_congruent, 2),
-                'Incongruent-Neutral_RT': round(incongruent_neutral, 2),
-                'Neutral-Congruent_RT': round(neutral_congruent, 2),
-                'Incongruent-Congruent_IES': round(incongruent_congruent_ies, 2),
-                'Incongruent-Neutral_IES': round(incongruent_neutral_ies, 2),
-                'Neutral-Congruent_IES': round(neutral_congruent_ies, 2)
-            })
-    
+
+            results_data.append(
+                {
+                    "Subject_ID": pid,
+                    "Session": f"Session {session}",
+                    "Incongruent-Congruent_RT": round(incongruent_congruent, 2),
+                    "Incongruent-Neutral_RT": round(incongruent_neutral, 2),
+                    "Neutral-Congruent_RT": round(neutral_congruent, 2),
+                    "Incongruent-Congruent_IES": round(incongruent_congruent_ies, 2),
+                    "Incongruent-Neutral_IES": round(incongruent_neutral_ies, 2),
+                    "Neutral-Congruent_IES": round(neutral_congruent_ies, 2),
+                }
+            )
+
     # 创建DataFrame并保存为Excel
     results_df = pd.DataFrame(results_data)
-    
+
     # 重新组织数据以使session1和session2并排显示
-    pivot_df = results_df.pivot(index='Subject_ID', 
-                              columns='Session', 
-                              values=['Incongruent-Congruent_RT', 
-                                    'Incongruent-Neutral_RT', 
-                                    'Neutral-Congruent_RT',
-                                    'Incongruent-Congruent_IES',
-                                    'Incongruent-Neutral_IES',
-                                    'Neutral-Congruent_IES'])
-    
+    pivot_df = results_df.pivot(
+        index="Subject_ID",
+        columns="Session",
+        values=[
+            "Incongruent-Congruent_RT",
+            "Incongruent-Neutral_RT",
+            "Neutral-Congruent_RT",
+            "Incongruent-Congruent_IES",
+            "Incongruent-Neutral_IES",
+            "Neutral-Congruent_IES",
+        ],
+    )
+
     # 计算描述性统计
-    desc_stats = pivot_df.agg(['mean', 'std']).round(2)
-    
+    desc_stats = pivot_df.agg(["mean", "std"]).round(2)
+
     # 将描述性统计添加到主DataFrame
     final_df = pd.concat([pivot_df, desc_stats])
-    
+
     # 保存到Excel
-    excel_path = 'output/stroop_interference_effects.xlsx'
-    with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+    excel_path = "output/stroop_interference_effects.xlsx"
+    with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
         # 保存主要结果
-        final_df.to_excel(writer, sheet_name='Detailed Results')
-        
+        final_df.to_excel(writer, sheet_name="Detailed Results")
+
         # 创建配对t检验结果的sheet
         t_test_results = []
-        measures = ['Incongruent-Congruent_RT', 'Incongruent-Neutral_RT', 'Neutral-Congruent_RT',
-                   'Incongruent-Congruent_IES', 'Incongruent-Neutral_IES', 'Neutral-Congruent_IES']
-        
+        measures = [
+            "Incongruent-Congruent_RT",
+            "Incongruent-Neutral_RT",
+            "Neutral-Congruent_RT",
+            "Incongruent-Congruent_IES",
+            "Incongruent-Neutral_IES",
+            "Neutral-Congruent_IES",
+        ]
+
         for measure in measures:
-            session1_data = results_df[results_df['Session'] == 'Session 1'][measure]
-            session2_data = results_df[results_df['Session'] == 'Session 2'][measure]
+            session1_data = results_df[results_df["Session"] == "Session 1"][measure]
+            session2_data = results_df[results_df["Session"] == "Session 2"][measure]
             t_stat, p_val = stats.ttest_rel(session1_data, session2_data)
-            
-            t_test_results.append({
-                'Measure': measure,
-                't_statistic': round(t_stat, 3),
-                'p_value': round(p_val, 3),
-                'Session1_Mean': round(session1_data.mean(), 2),
-                'Session1_SD': round(session1_data.std(), 2),
-                'Session2_Mean': round(session2_data.mean(), 2),
-                'Session2_SD': round(session2_data.std(), 2)
-            })
-        
+
+            t_test_results.append(
+                {
+                    "Measure": measure,
+                    "t_statistic": round(t_stat, 3),
+                    "p_value": round(p_val, 3),
+                    "Session1_Mean": round(session1_data.mean(), 2),
+                    "Session1_SD": round(session1_data.std(), 2),
+                    "Session2_Mean": round(session2_data.mean(), 2),
+                    "Session2_SD": round(session2_data.std(), 2),
+                }
+            )
+
         # 保存t检验结果
-        pd.DataFrame(t_test_results).to_excel(writer, sheet_name='T-test Results', index=False)
-    
+        pd.DataFrame(t_test_results).to_excel(
+            writer, sheet_name="T-test Results", index=False
+        )
+
     print(f"\nResults have been saved to: {excel_path}")
-    
+
     # 打印结果预览
     print("\nDetailed Results Preview:")
     print(pivot_df.round(2))
-    
+
     print("\nDescriptive Statistics:")
     print(desc_stats)
-    
+
     print("\nPaired t-test Results:")
     for result in t_test_results:
         print(f"\n{result['Measure']}:")
@@ -496,10 +492,10 @@ if __name__ == "__main__":
     nback_config = {
         "experiment_type": "nback",
         "extract_function": extract_nback,
-        "conditions": ["0-back", "1-back", "2-back"],  # 不同的n-back水平
         "condition_var": "condition",
         "plot_config": {
             "x_var": "condition",
+            "row_var": "group",
             "title": "N-back task reaction time comparison",
             "xlabel": "N-back level",
             "output_file": "nback_rt_comparison.png",
@@ -511,30 +507,12 @@ if __name__ == "__main__":
     stroop_config = {
         "experiment_type": "stroop",
         "extract_function": extract_stroop,
-        "conditions": [
-            "Consistent",
-            "Inconsistent",
-            "Neutral",
-        ],
         "plot_config": {
             "x_var": "condition",
+            "row_var": "group",
             "title": "Stroop task reaction time comparison",
             "xlabel": "Experiment stage",
             "output_file": "stroop_rt_comparison.png",
-        },
-        "output_dir": "output",
-    }
-
-    # BART实验配置
-    bart_config = {
-        "experiment_type": "bart",
-        "extract_function": extract_bart,
-        "conditions": ["overall"],  # BART只分析总体反应时
-        "plot_config": {
-            "x_var": "condition",
-            "title": "BART task reaction time comparison",
-            "xlabel": "Experiment stage",
-            "output_file": "bart_rt_comparison.png",
         },
         "output_dir": "output",
     }
@@ -560,7 +538,7 @@ if __name__ == "__main__":
     # }
 
     # 所有实验配置
-    config_list = [nback_config, stroop_config, bart_config]
+    config_list = [nback_config, stroop_config]
 
     # 分析实验组数据（除8号被试外）
     print("==== Analyzing experimental group data (excluding subject 8) ====")
@@ -575,7 +553,7 @@ if __name__ == "__main__":
 
     print("Starting analysis of individual experiments for experimental group...")
     exp_results = analyze_combined_experiments(
-        config_list, exclude_participant=[0, 1, 8]
+        config_list, exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25]
     )
 
     # # 分析对照组数据（只有8号被试）
