@@ -1,0 +1,5 @@
+phase,category,mean_valence,mean_arousal,participant_id,session
+baseline,positive,6.85,5.85,104,1
+baseline,neutral,4.4,4.15,104,1
+baseline,negative,3.1,5.0,104,1
+regulation,negative,4.0,6.05,104,1

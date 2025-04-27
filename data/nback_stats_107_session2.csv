@@ -1,0 +1,10 @@
+level,n_back,block,accuracy,mean_rt,participant_id,session
+block,0.0,0.0,100.0,,107,2
+block,0.0,1.0,100.0,,107,2
+block,1.0,0.0,86.66666666666667,,107,2
+block,1.0,1.0,93.33333333333333,,107,2
+block,2.0,0.0,80.0,,107,2
+block,2.0,1.0,90.0,,107,2
+task,0.0,all,100.0,,107,2
+task,1.0,all,90.0,,107,2
+task,2.0,all,85.0,,107,2
