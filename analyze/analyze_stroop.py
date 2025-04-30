@@ -253,7 +253,7 @@ def analyze_stroop_rt(
     df = extract_func(experiment_config)
     if isinstance(df, tuple):
         df, original_df = df  # Assuming extract_func might return original df too
-
+    df = df[df["condition"].isin(["Inconsistent-Consistent", "Inconsistent-Neutral"])]
     # 3. Filter data based on participant IDs
     if exclude_participant is not None:
         df = df[~df["participant_id"].isin(np.atleast_1d(exclude_participant))]
@@ -275,6 +275,33 @@ def analyze_stroop_rt(
         print(anova_table)
     except Exception as e:
         print(f"Could not perform ANOVA on RT: {e}")
+    # Perform separate 2x2 ANOVAs for each condition
+
+    # 1. Analysis for Inconsistent-Consistent condition
+    print("\n==== 2x2 ANOVA for Inconsistent-Consistent Condition ====")
+    df_ic = df[df["condition"] == "Inconsistent-Consistent"].copy()
+
+    try:
+        # 2 (normal, emo) x 2 (pre-coffee, post-coffee) ANOVA
+        model_ic = ols("rt ~ group * session", data=df_ic).fit()
+        anova_table_ic = sm.stats.anova_lm(model_ic, typ=2)
+        print(anova_table_ic)
+
+    except Exception as e:
+        print(f"Could not perform ANOVA on Inconsistent-Consistent condition: {e}")
+
+    # 2. Analysis for Inconsistent-Neutral condition
+    print("\n==== 2x2 ANOVA for Inconsistent-Neutral Condition ====")
+    df_in = df[df["condition"] == "Inconsistent-Neutral"].copy()
+
+    try:
+        # 2 (normal, emo) x 2 (pre-coffee, post-coffee) ANOVA
+        model_in = ols("rt ~ group * session", data=df_in).fit()
+        anova_table_in = sm.stats.anova_lm(model_in, typ=2)
+        print(anova_table_in)
+
+    except Exception as e:
+        print(f"Could not perform ANOVA on Inconsistent-Neutral condition: {e}")
 
     # 6. Visualization
     if experiment_config.get("plot", True):

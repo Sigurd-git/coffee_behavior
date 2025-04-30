@@ -21,6 +21,7 @@ def plot_bar_significant(
     # 计算参与者人数
     participant_count = df["participant_id"].nunique()
     print(f"This group contains {participant_count} participants")
+    participant_list = df["participant_id"].astype(str).unique().tolist()
     if row_var is not None:
         row_values = df[row_var].unique()
         fig, axes = plt.subplots(
@@ -72,7 +73,9 @@ def plot_bar_significant(
         )
         annotator.apply_and_annotate()
     if output_file is not None:
-        fig.savefig(os.path.join(output_dir, output_file))
+        fig.savefig(
+            os.path.join(output_dir, "-".join(participant_list) + "_" + output_file)
+        )
     plt.close()
 
 
@@ -112,6 +115,62 @@ def analyze_emotion():
     model = ols("arousal ~ emotion_type * session * group", data=exp_df).fit()
     anova_table = sm.stats.anova_lm(model, typ=2)
     print(anova_table)
+
+    # Perform  2x2x2 ANOVAs for negative-regulation
+    print("\n==== 2x2x2 ANOVA for Negative-Regulation Emotion Type ====")
+    df_negative_regulation = exp_df[
+        exp_df["emotion_type"].isin(["negative", "regulation"])
+    ].copy()
+
+    try:
+        # 2 (normal, emo) x 2 (pre-coffee, post-coffee) ANOVA for valence
+        print("\n-- Valence for Negative-Regulation Emotion --")
+        model_neg_val = ols(
+            "valence ~ group * session * emotion_type", data=df_negative_regulation
+        ).fit()
+        anova_table_neg_val = sm.stats.anova_lm(model_neg_val, typ=2)
+        print(anova_table_neg_val)
+
+        # 2 (normal, emo) x 2 (pre-coffee, post-coffee) ANOVA for arousal
+        print("\n-- Arousal for Negative-Regulation Emotion --")
+        model_neg_aro = ols(
+            "arousal ~ group * session * emotion_type", data=df_negative_regulation
+        ).fit()
+        anova_table_neg_aro = sm.stats.anova_lm(model_neg_aro, typ=2)
+        print(anova_table_neg_aro)
+    except Exception as e:
+        print(f"Could not perform ANOVA on Negative-Regulation emotion type: {e}")
+
+    # Perform  3x2x2 ANOVAs for negative-neutral-positive
+    print("\n==== 3x2x2 ANOVA for Negative-Neutral-Positive Emotion Type ====")
+    df_negative_neutral_positive = exp_df[
+        exp_df["emotion_type"].isin(["negative", "neutral", "positive"])
+    ].copy()
+
+    try:
+        # 3 (negative, neutral, positive) x 2 (pre-coffee, post-coffee) ANOVA for valence
+        print("\n-- Valence for Negative-Neutral-Positive Emotion --")
+        model_neg_neutral_pos_val = ols(
+            "valence ~ group * session * emotion_type",
+            data=df_negative_neutral_positive,
+        ).fit()
+        anova_table_neg_neutral_pos_val = sm.stats.anova_lm(
+            model_neg_neutral_pos_val, typ=2
+        )
+        print(anova_table_neg_neutral_pos_val)
+
+        # 3 (negative, neutral, positive) x 2 (pre-coffee, post-coffee) ANOVA for arousal
+        print("\n-- Arousal for Negative-Neutral-Positive Emotion --")
+        model_neg_neutral_pos_aro = ols(
+            "arousal ~ group * session * emotion_type",
+            data=df_negative_neutral_positive,
+        ).fit()
+        anova_table_neg_neutral_pos_aro = sm.stats.anova_lm(
+            model_neg_neutral_pos_aro, typ=2
+        )
+        print(anova_table_neg_neutral_pos_aro)
+    except Exception as e:
+        print(f"Could not perform ANOVA on Negative-Neutral-Positive emotion type: {e}")
 
     # Create visualizations
     plot_bar_significant(

@@ -23,16 +23,7 @@ def analyze_bart():
     # Extract earnings data
     exp_df = extract_bart(bart_acc_config)
     exp_df = exp_df[
-        # ~exp_df["participant_id"].isin([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25])
-        ~exp_df["participant_id"].isin(
-            [
-                0,
-                1,
-                2,
-                4,
-                8,
-            ]
-        )
+        ~exp_df["participant_id"].isin([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 16, 19, 25])
     ]
     if exp_df.empty:
         print("No valid BART data found")
@@ -101,7 +92,7 @@ def analyze_group_earnings(df, output_dir, plot_configs):
     # 计算参与者人数
     participant_count = df["participant_id"].nunique()
     print(f"This group contains {participant_count} participants")
-
+    participant_list = df["participant_id"].astype(str).unique().tolist()
     for config in plot_configs:
         ax = plot_bar_comparison(
             df,
@@ -134,13 +125,18 @@ def analyze_group_earnings(df, output_dir, plot_configs):
             hue=hue_var,
         )
         annotator.configure(
-            test="t-test_ind",
+            test="t-test_paired",
             text_format="star",
             loc="inside",
             hide_non_significant=True,
         )
         annotator.apply_and_annotate()
-        ax.figure.savefig(os.path.join(output_dir, config["output_file"]))
+        ax.figure.savefig(
+            os.path.join(
+                output_dir,
+                "-".join(participant_list) + "_" + config["output_file"],
+            )
+        )
 
 
 def analyze_bart_high_mid_low():
