@@ -87,7 +87,16 @@ def analyze_emotion():
     # Extract earnings data
     exp_df = extract_emotion(emotion_config)
     exp_df = exp_df[
-        ~exp_df["participant_id"].isin([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25])
+        # ~exp_df["participant_id"].isin([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25])
+        ~exp_df["participant_id"].isin(
+            [
+                0,
+                1,
+                2,
+                4,
+                8,
+            ]
+        )
     ]
 
     # control_df = earnings_df[earnings_df["participant_id"] == 8]

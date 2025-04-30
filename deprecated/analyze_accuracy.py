@@ -9,10 +9,7 @@ from utils.plot import (
 )
 from utils.tasks import (
     extract_nback,
-    extract_stroop,
-    extract_bart,
 )
-from statannotations.Annotator import Annotator
 
 def analyze_experiment_accuracy(
     experiment_config, exclude_participant=None, only_participant=None
@@ -93,33 +90,6 @@ def analyze_experiment_accuracy(
                 show_values=plot_config.get("show_values", True),
             )
             ax.set_title(row_value)
-            # 添加显著性标记
-            x_var = plot_config.get("x_var", "condition")
-            y_var = plot_config.get("y_var", "accuracy")  # 使用正确的y变量名
-            hue_var = plot_config.get("hue_var", "session")
-            x_values = df_row[x_var].unique()
-            hue_values = df_row[hue_var].unique()
-            box_pairs = []
-            for x in x_values:
-                for i in range(len(hue_values)):
-                    for j in range(i + 1, len(hue_values)):
-                        box_pairs.append(((x, hue_values[i]), (x, hue_values[j])))
-            annotator = Annotator(
-                ax,
-                box_pairs,
-                data=df_row,
-                x=x_var,
-                y=y_var,
-                order=x_values,
-                hue=hue_var,
-            )
-            annotator.configure(
-                test="t-test_paired",
-                text_format="star",
-                loc="inside",
-                hide_non_significant=True,
-            )
-            annotator.apply_and_annotate()
         plt.tight_layout()
 
         # 保存图表
@@ -179,62 +149,43 @@ if __name__ == "__main__":
             "title": "N-back Task Accuracy Comparison",
             "xlabel": "Condition",
             "ylabel": "Accuracy (%)",
-            "output_file": "nback_accuracy_comparison.png",
+            "output_file": "nback_accuracy_comparison_standalone.png",
         },
         "output_dir": "output",
     }
 
     # Stroop实验配置
-    stroop_acc_config = {
-        "experiment_type": "stroop",
-        "extract_function": extract_stroop,
-        "plot_config": {
-            "x_var": "condition",
-            "row_var": "group",
-            "title": "Stroop Task Accuracy Comparison",
-            "xlabel": "Session",
-            "ylabel": "Accuracy (%)",
-            "output_file": "stroop_accuracy_comparison.png",
-        },
-        "output_dir": "output",
-    }
+    # stroop_acc_config = {
+    #     "experiment_type": "stroop",
+    #     "extract_function": extract_stroop,
+    #     "plot_config": {
+    #         "x_var": "condition",
+    #         "row_var": "group",
+    #         "title": "Stroop Task Accuracy Comparison",
+    #         "xlabel": "Session",
+    #         "ylabel": "Accuracy (%)",
+    #         "output_file": "stroop_accuracy_comparison.png",
+    #     },
+    #     "output_dir": "output",
+    # }
 
     # 创建输出目录
     os.makedirs("output", exist_ok=True)
 
-    # 分析实验组数据（不包括8号被试）
-    print("==== Analyzing experimental group data (excluding subject 8) ====")
-    config_list = [
-        nback_acc_config,
-        stroop_acc_config,
-    ]
+    # Define participants to exclude
+    exclude_ids = [0, 1, 2, 4, 8]
 
-    exp_results = analyze_combined_accuracy(
-        config_list, exclude_participant=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 19, 16, 25]
-    )
+    print("==== This script now only contains N-back accuracy configuration ====")
+    print("==== N-back accuracy analysis logic is in analyze_nback.py ====")
+    print("==== Stroop accuracy analysis logic is in analyze_stroop.py ====")
 
-    # # 分析对照组数据（只有8号被试）
-    # print("\n==== Analyzing control group data (only subject 8) ====")
-    # control_config_list = []
-    # for config in config_list:
-    #     # 创建新配置，避免修改原始配置
-    #     control_config = config.copy()
-    #     control_config["plot_config"] = config["plot_config"].copy()
+    # Removed analysis calls as the functions are removed
+    # print("==== Analyzing experimental group data (excluding specified IDs) ====")
+    # config_list = [nback_acc_config] # Only nback remains conceptually
 
-    #     # 更新输出文件名，加上control前缀
-    #     output_file = config["plot_config"]["output_file"]
-    #     control_config["plot_config"]["output_file"] = output_file.replace(
-    #         "_exp.png", "_control.png"
-    #     )
-    #     control_config["plot_config"]["title"] = output_file.replace(
-    #         "Experiment Group", "Control Group"
-    #     )
+    # exp_results = analyze_combined_accuracy( # Function removed
+    #     config_list,
+    #     exclude_participant=exclude_ids,
+    # )
 
-    #     control_config_list.append(control_config)
-
-    # control_results = analyze_combined_accuracy(control_config_list, only_participant=8)
-
-    print(
-        "\nStarting analysis of individual experiment accuracy for experimental group..."
-    )
-    print("\nAccuracy analysis completed!")
+    # print("\nN-back Accuracy configuration remains, but analysis functions removed.")
